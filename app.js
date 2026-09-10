@@ -5,18 +5,26 @@
  */
 
 const STORAGE_KEY = 'gordinhos_financeiro_debtors_v2';
+const AUTH_USER_KEY = 'gordinhos_financeiro_user_v1';
+const AUTH_PASSWORD_KEY = 'gordinhos_financeiro_pwd_v1';
+const AUTH_SESSION_KEY = 'gordinhos_financeiro_session_v1';
+const DEFAULT_USER = 'admin';
+const DEFAULT_PASSWORD = '1234';
 
+let appUsername = localStorage.getItem(AUTH_USER_KEY) || DEFAULT_USER;
+let appPassword = localStorage.getItem(AUTH_PASSWORD_KEY) || DEFAULT_PASSWORD;
 let debtors = [];
 let currentFilter = 'all';
 let searchQuery = '';
 let activeDebtorForAction = null;
 
 // ==============================================================================
-// INICIALIZAÇÃO
+// INICIALIZAÇÃO E SEGURANÇA (AUTENTICAÇÃO)
 // ==============================================================================
 
 function initializeApp() {
   try {
+    initAuthSystem();
     initDateInput();
     loadData();
     setupEventListeners();
@@ -24,6 +32,336 @@ function initializeApp() {
     render();
   } catch (err) {
     console.error('Erro na inicialização do sistema:', err);
+  }
+}
+
+function listenForAuthSync() {
+  if (window.firebaseDb && typeof window.firebaseDb.ref === 'function') {
+    try {
+      window.firebaseDb.ref('config/appUsername').on('value', (snapshot) => {
+        const cloudUser = snapshot.val();
+        if (cloudUser && typeof cloudUser === 'string' && cloudUser.trim() !== '') {
+          appUsername = cloudUser.trim();
+          localStorage.setItem(AUTH_USER_KEY, appUsername);
+          console.log('🔒 Usuário sincronizado via Realtime Database:', appUsername);
+        }
+      });
+
+      window.firebaseDb.ref('config/appPassword').on('value', (snapshot) => {
+        const cloudPwd = snapshot.val();
+        if (cloudPwd && typeof cloudPwd === 'string' && cloudPwd.trim() !== '') {
+          appPassword = cloudPwd;
+          localStorage.setItem(AUTH_PASSWORD_KEY, cloudPwd);
+          console.log('🔒 Senha sincronizada via Realtime Database');
+        }
+      });
+    } catch (e) {
+      console.warn('Erro ao escutar credenciais no Firebase:', e);
+    }
+  }
+}
+
+function setAppCredentials(newUser, newPassword) {
+  if (newUser && newUser.trim() !== '') {
+    appUsername = newUser.trim();
+    localStorage.setItem(AUTH_USER_KEY, appUsername);
+  }
+  if (newPassword && newPassword.trim() !== '') {
+    appPassword = newPassword;
+    localStorage.setItem(AUTH_PASSWORD_KEY, newPassword);
+  }
+
+  if (window.firebaseDb && typeof window.firebaseDb.ref === 'function') {
+    try {
+      window.firebaseDb.ref('config/appUsername').set(appUsername);
+      window.firebaseDb.ref('config/appPassword').set(appPassword).then(() => {
+        console.log('☁️ Usuário e Senha sincronizados no Realtime Database com sucesso!');
+      }).catch(err => {
+        console.warn('Aviso Realtime Database ao salvar credenciais:', err.message);
+      });
+    } catch (e) {
+      console.warn('Erro ao salvar credenciais no Firebase:', e);
+    }
+  }
+}
+
+function unlockApp() {
+  const lockScreen = document.getElementById('authLockScreen');
+  if (lockScreen) {
+    lockScreen.classList.add('unlocked');
+  }
+  sessionStorage.setItem(AUTH_SESSION_KEY, 'true');
+}
+
+function lockApp() {
+  sessionStorage.removeItem(AUTH_SESSION_KEY);
+  localStorage.removeItem(AUTH_SESSION_KEY);
+
+  const lockScreen = document.getElementById('authLockScreen');
+  if (lockScreen) {
+    lockScreen.classList.remove('unlocked');
+  }
+
+  const loginCard = document.getElementById('authLoginCard');
+  const changePwdCard = document.getElementById('authChangePwdCard');
+  if (loginCard) loginCard.style.display = 'block';
+  if (changePwdCard) changePwdCard.style.display = 'none';
+
+  const userInput = document.getElementById('authUsernameInput');
+  const pwdInput = document.getElementById('authPasswordInput');
+  if (userInput) userInput.value = appUsername;
+  if (pwdInput) {
+    pwdInput.value = '';
+    setTimeout(() => pwdInput.focus(), 150);
+  }
+
+  const errEl = document.getElementById('authLoginError');
+  if (errEl) {
+    errEl.textContent = '';
+    errEl.classList.remove('active');
+  }
+}
+
+function initAuthSystem() {
+  listenForAuthSync();
+
+  const isLoggedSession = sessionStorage.getItem(AUTH_SESSION_KEY) === 'true';
+  const lockScreen = document.getElementById('authLockScreen');
+
+  if (isLoggedSession) {
+    if (lockScreen) lockScreen.classList.add('unlocked');
+  } else {
+    if (lockScreen) lockScreen.classList.remove('unlocked');
+    const userInput = document.getElementById('authUsernameInput');
+    const pwdInput = document.getElementById('authPasswordInput');
+    if (userInput) userInput.value = appUsername;
+    if (pwdInput) setTimeout(() => pwdInput.focus(), 250);
+  }
+
+  // Alternar visibilidade da senha (olho)
+  const btnToggle = document.getElementById('btnToggleAuthPwd');
+  const pwdInput = document.getElementById('authPasswordInput');
+  const iconEyeOpen = document.getElementById('iconEyeOpen');
+  const iconEyeClosed = document.getElementById('iconEyeClosed');
+
+  if (btnToggle && pwdInput) {
+    btnToggle.addEventListener('click', () => {
+      if (pwdInput.type === 'password') {
+        pwdInput.type = 'text';
+        if (iconEyeOpen) iconEyeOpen.style.display = 'none';
+        if (iconEyeClosed) iconEyeClosed.style.display = 'block';
+      } else {
+        pwdInput.type = 'password';
+        if (iconEyeOpen) iconEyeOpen.style.display = 'block';
+        if (iconEyeClosed) iconEyeClosed.style.display = 'none';
+      }
+    });
+  }
+
+  // Formulário de Login na Tela de Bloqueio
+  const formLogin = document.getElementById('formAuthLogin');
+  if (formLogin) {
+    formLogin.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const typedUser = (document.getElementById('authUsernameInput').value || '').trim();
+      const typedPwd = pwdInput ? pwdInput.value : '';
+      const errEl = document.getElementById('authLoginError');
+
+      const isUserMatch = typedUser.toLowerCase() === appUsername.toLowerCase();
+      const isPwdMatch = typedPwd === appPassword;
+
+      if (isUserMatch && isPwdMatch) {
+        if (errEl) {
+          errEl.textContent = '';
+          errEl.classList.remove('active');
+        }
+        unlockApp();
+        showToast('Login efetuado com sucesso!', 'success');
+      } else {
+        if (errEl) {
+          errEl.textContent = 'Usuário ou senha incorretos! Tente novamente.';
+          errEl.classList.add('active');
+        }
+        if (pwdInput) {
+          pwdInput.classList.add('shake-anim');
+          setTimeout(() => pwdInput.classList.remove('shake-anim'), 400);
+          pwdInput.select();
+        }
+      }
+    });
+  }
+
+  // Alternar para Card de Alterar Senha na Tela de Bloqueio
+  const btnSwitchToChange = document.getElementById('btnSwitchToChangePwd');
+  const btnCancelChange = document.getElementById('btnCancelChangePwdScreen');
+  const loginCard = document.getElementById('authLoginCard');
+  const changePwdCard = document.getElementById('authChangePwdCard');
+
+  if (btnSwitchToChange && loginCard && changePwdCard) {
+    btnSwitchToChange.addEventListener('click', () => {
+      loginCard.style.display = 'none';
+      changePwdCard.style.display = 'block';
+      const curUserEl = document.getElementById('screenNewUser');
+      if (curUserEl) curUserEl.value = appUsername;
+      const curInput = document.getElementById('screenCurrentPwd');
+      if (curInput) setTimeout(() => curInput.focus(), 100);
+    });
+  }
+
+  if (btnCancelChange && loginCard && changePwdCard) {
+    btnCancelChange.addEventListener('click', () => {
+      changePwdCard.style.display = 'none';
+      loginCard.style.display = 'block';
+      const errEl = document.getElementById('screenChangePwdError');
+      if (errEl) errEl.classList.remove('active');
+      if (pwdInput) setTimeout(() => pwdInput.focus(), 100);
+    });
+  }
+
+  // Salvar alteração de login e senha pela tela de bloqueio
+  const formChangeScreen = document.getElementById('formAuthChangePwdScreen');
+  if (formChangeScreen) {
+    formChangeScreen.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const cur = document.getElementById('screenCurrentPwd').value;
+      const nwUser = (document.getElementById('screenNewUser').value || '').trim();
+      const nw = document.getElementById('screenNewPwd').value;
+      const cf = document.getElementById('screenConfirmPwd').value;
+      const errEl = document.getElementById('screenChangePwdError');
+
+      if (cur !== appPassword) {
+        if (errEl) {
+          errEl.textContent = 'A senha atual digitada está incorreta.';
+          errEl.classList.add('active');
+        }
+        return;
+      }
+
+      if (nwUser.length < 2) {
+        if (errEl) {
+          errEl.textContent = 'O usuário deve ter pelo menos 2 caracteres.';
+          errEl.classList.add('active');
+        }
+        return;
+      }
+
+      if (nw.length < 3) {
+        if (errEl) {
+          errEl.textContent = 'A nova senha deve ter pelo menos 3 dígitos.';
+          errEl.classList.add('active');
+        }
+        return;
+      }
+
+      if (nw !== cf) {
+        if (errEl) {
+          errEl.textContent = 'A confirmação de senha não confere.';
+          errEl.classList.add('active');
+        }
+        return;
+      }
+
+      setAppCredentials(nwUser, nw);
+      if (errEl) errEl.classList.remove('active');
+      formChangeScreen.reset();
+      changePwdCard.style.display = 'none';
+      loginCard.style.display = 'block';
+
+      const userInput = document.getElementById('authUsernameInput');
+      if (userInput) userInput.value = nwUser;
+      if (pwdInput) {
+        pwdInput.value = nw;
+        pwdInput.focus();
+      }
+      showToast('Login e Senha atualizados com sucesso!', 'success');
+    });
+  }
+
+  // Botão de Bloquear no Topo (Header)
+  const btnHeaderLock = document.getElementById('btnHeaderLock');
+  if (btnHeaderLock) {
+    btnHeaderLock.addEventListener('click', () => {
+      lockApp();
+      showToast('Aplicativo bloqueado!', 'info');
+    });
+  }
+
+  // Botão de Bloquear dentro da aba Mais
+  const btnLockAppInside = document.getElementById('btnLockAppInside');
+  if (btnLockAppInside) {
+    btnLockAppInside.addEventListener('click', () => {
+      lockApp();
+      showToast('Aplicativo bloqueado!', 'info');
+    });
+  }
+
+  // Abrir modal de alterar senha dentro do app
+  const btnOpenChangeModal = document.getElementById('btnOpenChangePasswordModal');
+  if (btnOpenChangeModal) {
+    btnOpenChangeModal.addEventListener('click', () => {
+      openModal('modalChangePassword');
+      const errEl = document.getElementById('modalChangePwdError');
+      if (errEl) errEl.classList.remove('active');
+      const curInput = document.getElementById('modalCurrentPassword');
+      const userEl = document.getElementById('modalNewUsername');
+      if (userEl) userEl.value = appUsername;
+      if (curInput) {
+        curInput.value = '';
+        setTimeout(() => curInput.focus(), 150);
+      }
+      document.getElementById('modalNewPassword').value = '';
+      document.getElementById('modalConfirmPassword').value = '';
+    });
+  }
+
+  // Salvar alteração de senha pelo modal interno
+  const formModalChange = document.getElementById('formModalChangePassword');
+  if (formModalChange) {
+    formModalChange.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const cur = document.getElementById('modalCurrentPassword').value;
+      const nwUser = (document.getElementById('modalNewUsername').value || '').trim();
+      const nw = document.getElementById('modalNewPassword').value;
+      const cf = document.getElementById('modalConfirmPassword').value;
+      const errEl = document.getElementById('modalChangePwdError');
+
+      if (cur !== appPassword) {
+        if (errEl) {
+          errEl.textContent = 'A senha atual digitada está incorreta.';
+          errEl.classList.add('active');
+        }
+        return;
+      }
+
+      if (nwUser.length < 2) {
+        if (errEl) {
+          errEl.textContent = 'O usuário deve ter pelo menos 2 caracteres.';
+          errEl.classList.add('active');
+        }
+        return;
+      }
+
+      if (nw.length < 3) {
+        if (errEl) {
+          errEl.textContent = 'A nova senha deve ter pelo menos 3 dígitos.';
+          errEl.classList.add('active');
+        }
+        return;
+      }
+
+      if (nw !== cf) {
+        if (errEl) {
+          errEl.textContent = 'A confirmação de senha não confere.';
+          errEl.classList.add('active');
+        }
+        return;
+      }
+
+      setAppCredentials(nwUser, nw);
+      if (errEl) errEl.classList.remove('active');
+      closeModal('modalChangePassword');
+      showToast('Login e Senha atualizados e sincronizados!', 'success');
+    });
   }
 }
 
