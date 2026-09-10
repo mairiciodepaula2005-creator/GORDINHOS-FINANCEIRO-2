@@ -389,30 +389,63 @@ function initDateInput() {
 }
 
 // ==============================================================================
-// DADOS E PERSISTÊNCIA (COM CLIENTES IDÊNTICOS À FOTO)
+// DADOS E PERSISTÊNCIA (COM CARREGAMENTO IMEDIATO DO FIREBASE REALTIME DATABASE)
 // ==============================================================================
+
+function processIncomingFirebaseDebtors(cloudData) {
+  if (!cloudData) return;
+  let list = [];
+  if (Array.isArray(cloudData)) {
+    list = cloudData.filter(d => d && typeof d === 'object' && d.name);
+  } else if (typeof cloudData === 'object') {
+    list = Object.values(cloudData).filter(d => d && typeof d === 'object' && d.name);
+  }
+  if (list.length > 0) {
+    debtors = list;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(debtors));
+    render();
+    console.log('☁️ Clientes carregados do Firebase com sucesso! Total:', debtors.length);
+  }
+}
 
 function loadData() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      debtors = JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        debtors = parsed.filter(d => d && typeof d === 'object' && d.name);
+      }
     } catch (e) {
       console.error('Erro ao ler dados salvos:', e);
       debtors = [];
     }
   }
 
-  // Preenche com os clientes da imagem se a base estiver vazia
-  if (!debtors || debtors.length === 0) {
-    loadSampleData();
-  }
+  // 1. CARREGAMENTO IMEDIATO VIA REST NA ABERTURA DO SITE
+  fetch('https://gordinhos-finacneiro-default-rtdb.firebaseio.com/debtors.json')
+    .then(res => res.json())
+    .then(cloudData => {
+      if (cloudData) {
+        processIncomingFirebaseDebtors(cloudData);
+      } else if (!debtors || debtors.length === 0) {
+        loadSampleData();
+      }
+    })
+    .catch(err => {
+      console.info('Conexão Firebase REST:', err.message);
+      if (!debtors || debtors.length === 0) {
+        loadSampleData();
+      }
+    });
 
-  // Conecta ao Realtime Database para sincronizar dados em tempo real
+  // 2. CONEXÃO CONTÍNUA EM TEMPO REAL VIA SDK
   syncWithRealtimeDatabase();
 }
 
 function saveData() {
+  // Filtra dados válidos antes de salvar
+  debtors = debtors.filter(d => d && typeof d === 'object' && d.name);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(debtors));
 
   // Salva no Firebase Realtime Database
@@ -434,11 +467,8 @@ function syncWithRealtimeDatabase() {
     try {
       window.firebaseDb.ref('debtors').on('value', (snapshot) => {
         const cloudData = snapshot.val();
-        if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
-          debtors = cloudData;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(debtors));
-          render();
-          console.log('☁️ Dados atualizados do Realtime Database em tempo real!');
+        if (cloudData) {
+          processIncomingFirebaseDebtors(cloudData);
         }
       }, (error) => {
         console.info('Aviso conexão Realtime Database:', error.message);
@@ -658,13 +688,24 @@ function generateMonthlyInstallments(principal, totalAmount, count, startDate) {
 }
 
 function evaluateDebtorStatus(debtor) {
-  const todayStr = getTodayString();
-  if (!debtor || !debtor.installments || !Array.isArray(debtor.installments)) {
-    debtor.installments = [];
+  if (!debtor || typeof debtor !== 'object') {
+    return {
+      status: 'none',
+      label: '',
+      pillClass: '',
+      nextInstallment: null,
+      daysOverdue: 0,
+      paidCount: 0,
+      totalCount: 0,
+      remainingBalance: 0
+    };
   }
-  const unpaidInstallments = debtor.installments.filter(i => !i.paid);
-  const paidCount = debtor.installments.filter(i => i.paid).length;
-  const totalCount = debtor.installments.length || 1;
+
+  const todayStr = getTodayString();
+  const installments = Array.isArray(debtor.installments) ? debtor.installments : [];
+  const unpaidInstallments = installments.filter(i => !i.paid);
+  const paidCount = installments.filter(i => i.paid).length;
+  const totalCount = installments.length || 1;
 
   if (unpaidInstallments.length === 0) {
     return {
@@ -794,11 +835,12 @@ function render() {
  * Renderiza os 3 contadores do topo da tela Clientes (como na foto)
  */
 function renderMetricsBar() {
-  let totalClients = debtors.length;
+  const validDebtors = debtors.filter(d => d && typeof d === 'object' && d.name);
+  let totalClients = validDebtors.length;
   let activeClients = 0;
   let overdueClients = 0;
 
-  debtors.forEach(debtor => {
+  validDebtors.forEach(debtor => {
     const info = evaluateDebtorStatus(debtor);
     if (info.status === 'overdue') {
       overdueClients++;
@@ -816,6 +858,7 @@ function renderMetricsBar() {
  * Renderiza o resumo financeiro na aba Início
  */
 function renderDashboardOverview() {
+  const validDebtors = debtors.filter(d => d && typeof d === 'object' && d.name);
   let totalPrincipal = 0;
   let totalReceivable = 0;
   let totalOverdue = 0;
@@ -823,7 +866,7 @@ function renderDashboardOverview() {
   let countOverdue = 0;
   let countUpcoming = 0;
 
-  debtors.forEach(d => {
+  validDebtors.forEach(d => {
     const info = evaluateDebtorStatus(d);
     totalPrincipal += d.principal || 0;
     totalReceivable += info.remainingBalance;
@@ -838,7 +881,7 @@ function renderDashboardOverview() {
   });
 
   document.getElementById('dashTotalPrincipal').textContent = formatCurrency(totalPrincipal);
-  document.getElementById('dashTotalContracts').textContent = `${debtors.length} contratos ativos`;
+  document.getElementById('dashTotalContracts').textContent = `${validDebtors.length} contratos ativos`;
 
   document.getElementById('dashTotalReceivable').textContent = formatCurrency(totalReceivable);
   document.getElementById('dashTotalProfit').textContent = `Retorno previsto`;
@@ -860,6 +903,7 @@ function renderClientsList() {
 
   // Filtra clientes
   const filtered = debtors.filter(debtor => {
+    if (!debtor || typeof debtor !== 'object' || !debtor.name) return false;
     const info = evaluateDebtorStatus(debtor);
 
     if (currentFilter !== 'all') {
@@ -937,6 +981,7 @@ function renderCobrancasFocus() {
   container.innerHTML = '';
 
   const focusList = debtors.filter(d => {
+    if (!d || typeof d !== 'object' || !d.name) return false;
     const info = evaluateDebtorStatus(d);
     return info.status === 'overdue' || info.status === 'due_today';
   });
