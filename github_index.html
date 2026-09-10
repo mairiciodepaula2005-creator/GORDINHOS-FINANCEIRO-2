@@ -1,0 +1,2329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gordinhos Financeiro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+/* ==========================================================================
+   GORDINHOS FINANCEIRO - INTERFACE JUROSAPP (DARK MODE MOBILE NATIVO)
+   100% em Português (BR) | Ícones SVG Nativos Imunes a Falhas de Codificação
+   ========================================================================== */
+
+:root {
+  --bg-app: #0d121d;
+  --bg-header: #0d121d;
+  --bg-surface: #151d2a;
+  --bg-surface-hover: #1c2738;
+  --bg-input: #182232;
+  --bg-input-focus: #1d293d;
+  --border-subtle: #233044;
+  --border-card: #1f2c3f;
+
+  /* Cores de Destaque */
+  --green-primary: #22c55e;
+  --green-hover: #16a34a;
+  --green-glow: rgba(34, 197, 94, 0.25);
+  --green-badge-bg: rgba(34, 197, 94, 0.12);
+
+  --red-alert: #ef4444;
+  --red-badge-bg: rgba(239, 68, 68, 0.15);
+
+  --yellow-warning: #f59e0b;
+  --yellow-badge-bg: rgba(245, 158, 11, 0.15);
+
+  --blue-info: #3b82f6;
+
+  /* Textos */
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 9999px;
+
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: #080c14;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 14px;
+  line-height: 1.4;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* CONTAINER TIPO APLICATIVO NATIVO MOBILE */
+.app-viewport {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  background-color: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+  padding-bottom: 85px; /* Espaço para a barra inferior */
+}
+
+/* TOPO SUPERIOR (BARRA DO APP) */
+.top-app-bar {
+  background-color: var(--bg-header);
+  padding: 0.9rem 1.25rem 0.5rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.app-brand-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-brand-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--green-badge-bg);
+  color: var(--green-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  text-transform: uppercase;
+}
+
+/* CABEÇALHO DA TELA CLIENTES */
+.screen-header {
+  padding: 0.85rem 1.25rem 0.6rem 1.25rem;
+}
+
+.screen-title {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+}
+
+.screen-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   CARDS DE MÉTRICAS DO TOPO (3 CARDS HORIZONTAIS)
+   ========================================================================== */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+  padding: 0.4rem 1.25rem 0.85rem 1.25rem;
+}
+
+.metric-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+}
+
+.metric-card.metric-total::before { background: var(--blue-info); }
+.metric-card.metric-active::before { background: var(--green-primary); }
+.metric-card.metric-overdue::before { background: var(--red-alert); }
+
+.metric-number {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.1;
+}
+
+.metric-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-top: 0.25rem;
+  letter-spacing: 0.2px;
+}
+
+/* BOTÃO VERDE PRINCIPAL "+ Novo Cliente" */
+.action-banner-wrap {
+  padding: 0 1.25rem 0.85rem 1.25rem;
+}
+
+.btn-new-client {
+  width: 100%;
+  background-color: var(--green-primary);
+  color: #062310;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.82rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  box-shadow: 0 4px 14px var(--green-glow);
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+
+.btn-new-client:active {
+  transform: scale(0.98);
+  background-color: var(--green-hover);
+}
+
+/* CAMPO DE BUSCA */
+.search-box-wrap {
+  padding: 0 1.25rem 0.75rem 1.25rem;
+  position: relative;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon-svg {
+  position: absolute;
+  left: 0.95rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.search-input-field {
+  width: 100%;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  color: #ffffff;
+  font-size: 0.86rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.search-input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.search-input-field:focus {
+  border-color: var(--green-primary);
+  background-color: var(--bg-input-focus);
+}
+
+/* FILTROS HORIZONTAIS EM CHIPS */
+.filter-chips-scroll {
+  display: flex;
+  gap: 0.45rem;
+  padding: 0 1.25rem 0.85rem 1.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filter-chips-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chip-filter {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.38rem 0.85rem;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.chip-filter.active {
+  background-color: var(--green-primary);
+  border-color: var(--green-primary);
+  color: #072611;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   LISTA DE CLIENTES
+   ========================================================================== */
+.clients-list-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.client-row-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.client-row-item:active {
+  background-color: var(--bg-surface-hover);
+}
+
+.client-left-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Avatar com a Inicial */
+.client-avatar-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background-color: #172437;
+  border: 1.5px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--green-primary);
+  flex-shrink: 0;
+}
+
+.client-details-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.client-name-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.client-sub-info {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.client-right-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* Badges de Status */
+.status-pill {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.status-pill.status-ativo {
+  color: var(--green-primary);
+  background: var(--green-badge-bg);
+}
+
+.status-pill.status-vencido {
+  color: var(--red-alert);
+  background: var(--red-badge-bg);
+}
+
+.status-pill.status-vence-hoje {
+  color: var(--yellow-warning);
+  background: var(--yellow-badge-bg);
+}
+
+.status-pill.status-quitado {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.1);
+}
+
+/* Botão de 3 Pontinhos */
+.btn-dots-menu {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-dots-menu:hover, .btn-dots-menu:active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ==========================================================================
+   BARRA DE NAVEGAÇÃO INFERIOR FIXA (BOTTOM NAVIGATION BAR)
+   ========================================================================== */
+.bottom-nav-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background-color: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0.5rem 0.5rem 0.65rem 0.5rem;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+}
+
+.nav-tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  min-width: 60px;
+}
+
+.nav-tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+}
+
+.nav-tab-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+/* Aba Ativa */
+.nav-tab-item.active {
+  color: var(--green-primary);
+}
+
+.nav-tab-item.active .nav-tab-label {
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   OUTRAS TELAS / ABAS (INÍCIO, COBRANÇAS, MAIS)
+   ========================================================================== */
+.view-panel {
+  display: none;
+  padding: 1rem 1.25rem;
+}
+.view-panel.active-panel {
+  display: block;
+}
+
+/* Dashboard Financeiro na Aba Início */
+.kpi-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.kpi-stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.kpi-stat-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-top: 0.35rem;
+}
+
+.kpi-stat-sub {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  margin-top: 0.2rem;
+}
+
+/* ==========================================================================
+   MODAIS (NOVO CLIENTE & DETALHES DE PARCELAS)
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-sheet-content {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slide-up 0.2s ease-out;
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.modal-sheet-header {
+  padding: 1.15rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.modal-sheet-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.modal-sheet-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.modal-sheet-body {
+  padding: 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-sheet-footer {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+}
+
+/* FORM CONTROLS NO TEMA ESCURO */
+.form-group {
+  margin-bottom: 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.form-control {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.85rem;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.form-control:focus {
+  border-color: var(--green-primary);
+  box-shadow: 0 0 0 2px var(--green-glow);
+}
+
+/* Card de Seleção da Diária */
+.diaria-selector-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.diaria-selector-card input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green-primary);
+}
+
+/* Simulador Box */
+.calc-preview-card {
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.calc-preview-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--green-primary);
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.calc-preview-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  margin-bottom: 0.25rem;
+  color: var(--text-secondary);
+}
+
+.calc-preview-row strong {
+  color: #ffffff;
+}
+
+/* Action Sheet do Cliente */
+.action-sheet-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.sheet-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.sheet-action-btn:hover {
+  background: var(--bg-surface-hover);
+}
+
+.sheet-action-btn.btn-zap-color {
+  background: #25D366;
+  color: #0b2212;
+  border: none;
+  font-weight: 700;
+}
+
+.sheet-action-btn.btn-danger-color {
+  color: var(--red-alert);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Toast Notifications */
+.toast-container {
+  position: fixed;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 440px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: #ffffff;
+  padding: 0.75rem 1.15rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.toast.toast-success { border-left: 4px solid var(--green-primary); }
+.toast.toast-danger { border-left: 4px solid var(--red-alert); }
+.toast.toast-info { border-left: 4px solid var(--blue-info); }
+  </style>
+</head>
+<body>
+
+  <!-- CONTAINER ESTILO APP MOBILE NATIVO -->
+  <div class="app-viewport">
+
+    <!-- TOPO CENTRAL: IDENTIDADE DO APP -->
+    <header class="top-app-bar">
+      <div class="app-brand-title">
+        <span>Gordinhos Financeiro</span>
+        <span class="app-brand-badge">PRO</span>
+      </div>
+    </header>
+
+    <!-- ====================================================================
+         ABA 1: CLIENTES (INTERFACE PRINCIPAL ESTILO JUROSAPP)
+         ==================================================================== -->
+    <main id="viewClientes" class="view-panel active-panel" style="padding: 0;">
+
+      <!-- CABEÇALHO DA TELA -->
+      <section class="screen-header">
+        <h1 class="screen-title">Clientes</h1>
+        <p class="screen-subtitle">Gerencie seus clientes e informações de contato</p>
+      </section>
+
+      <!-- 3 CARDS DE MÉTRICAS DO TOPO -->
+      <section class="metrics-row">
+        <div class="metric-card metric-total">
+          <span class="metric-number" id="metricTotalClients">0</span>
+          <span class="metric-label">Total Clientes</span>
+        </div>
+        <div class="metric-card metric-active">
+          <span class="metric-number" id="metricActiveClients" style="color: var(--green-primary);">0</span>
+          <span class="metric-label">Em Dia</span>
+        </div>
+        <div class="metric-card metric-overdue">
+          <span class="metric-number" id="metricOverdueClients" style="color: var(--red-alert);">0</span>
+          <span class="metric-label">Em Atraso</span>
+        </div>
+      </section>
+
+      <!-- BOTÃO VERDE PRINCIPAL "+ Novo Cliente" -->
+      <div class="action-banner-wrap">
+        <button type="button" class="btn-new-client" id="btnOpenNewClient">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Novo Cliente</span>
+        </button>
+      </div>
+
+      <!-- CAMPO DE BUSCA COM ÍCONE NATIVO -->
+      <div class="search-box-wrap">
+        <div class="search-input-wrapper">
+          <div class="search-icon-svg">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </div>
+          <input type="text" id="searchInput" class="search-input-field" placeholder="Buscar cliente por nome ou WhatsApp...">
+        </div>
+      </div>
+
+      <!-- FILTROS RÁPIDOS EM CHIPS HORIZONTAIS -->
+      <div class="filter-chips-scroll">
+        <button type="button" class="chip-filter active" data-filter="all">Todos</button>
+        <button type="button" class="chip-filter" data-filter="overdue">Vencidos</button>
+        <button type="button" class="chip-filter" data-filter="due_today">Vence Hoje</button>
+        <button type="button" class="chip-filter" data-filter="on_time">Em Dia</button>
+        <button type="button" class="chip-filter" data-filter="completed">Quitados</button>
+      </div>
+
+      <!-- LISTA DE CLIENTES -->
+      <section class="clients-list-container" id="clientsListContainer">
+        <!-- Renderizado dinamicamente pelo JavaScript -->
+      </section>
+
+    </main>
+
+    <!-- ====================================================================
+         ABA 2: INÍCIO (DASHBOARD FINANCEIRO)
+         ==================================================================== -->
+    <section id="viewInicio" class="view-panel">
+      <div class="screen-header" style="padding-left: 0; padding-right: 0;">
+        <h1 class="screen-title">Painel Geral</h1>
+        <p class="screen-subtitle">Visão geral do capital e retorno em circulação</p>
+      </div>
+
+      <div class="kpi-cards-grid">
+        <div class="kpi-stat-card">
+          <span class="kpi-stat-label">Total Emprestado</span>
+          <span class="kpi-stat-value" id="dashTotalPrincipal">R$ 0,00</span>
+          <span class="kpi-stat-sub" id="dashTotalContracts">0 contratos</span>
+        </div>
+
+        <div class="kpi-stat-card">
+          <span class="kpi-stat-label" style="color: var(--green-primary);">Retorno Previsto</span>
+          <span class="kpi-stat-value" id="dashTotalReceivable" style="color: var(--green-primary);">R$ 0,00</span>
+          <span class="kpi-stat-sub" id="dashTotalProfit">Total a receber</span>
+        </div>
+
+        <div class="kpi-stat-card">
+          <span class="kpi-stat-label" style="color: var(--red-alert);">Total em Atraso</span>
+          <span class="kpi-stat-value" id="dashTotalOverdue" style="color: var(--red-alert);">R$ 0,00</span>
+          <span class="kpi-stat-sub" id="dashCountOverdue">0 inadimplentes</span>
+        </div>
+
+        <div class="kpi-stat-card">
+          <span class="kpi-stat-label" style="color: var(--yellow-warning);">Cobranças Hoje</span>
+          <span class="kpi-stat-value" id="dashTotalUpcoming" style="color: var(--yellow-warning);">R$ 0,00</span>
+          <span class="kpi-stat-sub" id="dashCountUpcoming">0 vencimentos</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         ABA 3: COBRANÇAS PRIORITÁRIAS
+         ==================================================================== -->
+    <section id="viewCobrancas" class="view-panel">
+      <div class="screen-header" style="padding-left: 0; padding-right: 0;">
+        <h1 class="screen-title">Cobranças</h1>
+        <p class="screen-subtitle">Clientes com pagamentos vencidos ou vencendo hoje</p>
+      </div>
+
+      <div id="cobrancasFocusList" class="clients-list-container" style="margin-top: 0.5rem;">
+        <!-- Lista de cobranças gerada pelo JavaScript -->
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         ABA 4: MAIS (BACKUP E RESTAURAÇÃO)
+         ==================================================================== -->
+    <section id="viewMais" class="view-panel">
+      <div class="screen-header" style="padding-left: 0; padding-right: 0;">
+        <h1 class="screen-title">Mais Opções</h1>
+        <p class="screen-subtitle">Backup, restauração e conexão com o Firebase</p>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem;">
+        <div class="kpi-stat-card">
+          <span class="kpi-stat-label">Conexão Firebase</span>
+          <span style="font-size: 0.88rem; font-weight: 700; color: var(--green-primary); margin-top: 0.35rem;">
+            🔥 Realtime Database Ativo
+          </span>
+          <span class="kpi-stat-sub" id="rtdbStatusText">https://gordinhos-finacneiro-default-rtdb.firebaseio.com</span>
+        </div>
+
+        <button type="button" id="btnSyncFirebase" class="sheet-action-btn" style="background: rgba(34, 197, 94, 0.15); color: var(--green-primary); border-color: rgba(34, 197, 94, 0.4);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg>
+          <span>Salvar no Realtime Database Agora</span>
+        </button>
+
+        <button type="button" id="btnExportData" class="sheet-action-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Exportar Dados (Backup JSON)</span>
+        </button>
+
+        <label class="sheet-action-btn" style="cursor: pointer;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <span>Restaurar Dados (Importar JSON)</span>
+          <input type="file" id="fileImportData" accept=".json" style="display: none;">
+        </label>
+
+        <button type="button" id="btnResetSampleData" class="sheet-action-btn btn-danger-color">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+          <span>Recarregar Clientes Demonstrativos</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         BARRA DE NAVEGAÇÃO INFERIOR FIXA (BOTTOM NAVIGATION BAR)
+         COM ÍCONES VETORIAIS SVG SEGUROS
+         ==================================================================== -->
+    <nav class="bottom-nav-bar">
+      <!-- 1. Início -->
+      <button class="nav-tab-item" data-tab="inicio">
+        <span class="nav-tab-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+        </span>
+        <span class="nav-tab-label">Início</span>
+      </button>
+
+      <!-- 2. Clientes -->
+      <button class="nav-tab-item active" data-tab="clientes">
+        <span class="nav-tab-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </span>
+        <span class="nav-tab-label">Clientes</span>
+      </button>
+
+      <!-- 3. Novo Empréstimo -->
+      <button class="nav-tab-item" data-tab="novo-emprestimo">
+        <span class="nav-tab-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+            <line x1="2" y1="10" x2="22" y2="10"></line>
+          </svg>
+        </span>
+        <span class="nav-tab-label">Empréstimos</span>
+      </button>
+
+      <!-- 4. Cobranças -->
+      <button class="nav-tab-item" data-tab="cobrancas">
+        <span class="nav-tab-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+        </span>
+        <span class="nav-tab-label">Cobranças</span>
+      </button>
+
+      <!-- 5. Mais -->
+      <button class="nav-tab-item" data-tab="mais">
+        <span class="nav-tab-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="2"></circle>
+            <circle cx="19" cy="12" r="2"></circle>
+            <circle cx="5" cy="12" r="2"></circle>
+          </svg>
+        </span>
+        <span class="nav-tab-label">Mais</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- ====================================================================
+       MODAL BOTTOM SHEET: NOVO CLIENTE / EMPRÉSTIMO
+       ==================================================================== -->
+  <div class="modal-overlay" id="modalNewClient">
+    <div class="modal-sheet-content">
+      <div class="modal-sheet-header">
+        <h3 class="modal-sheet-title">+ Cadastrar Novo Cliente</h3>
+        <button type="button" class="modal-sheet-close" data-close="modalNewClient">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <form id="formNewClient" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
+        <div class="modal-sheet-body">
+          
+          <!-- Nome do Cliente -->
+          <div class="form-group">
+            <label class="form-label" for="debtorName">Nome do Cliente *</label>
+            <input type="text" id="debtorName" class="form-control" placeholder="Ex: Carlos Eduardo de Oliveira" required>
+          </div>
+
+          <!-- Telefone / WhatsApp -->
+          <div class="form-group">
+            <label class="form-label" for="debtorPhone">WhatsApp / Telefone *</label>
+            <input type="tel" id="debtorPhone" class="form-control" inputmode="tel" placeholder="(11) 98888-7777" required>
+          </div>
+
+          <!-- Valor do Empréstimo -->
+          <div class="form-group">
+            <label class="form-label" for="debtorAmount">Valor do Empréstimo (R$) *</label>
+            <input type="number" id="debtorAmount" class="form-control" inputmode="decimal" placeholder="1000.00" step="0.01" min="1" required>
+          </div>
+
+          <!-- Taxa de Juros ao Mês (Padrão 30%) -->
+          <div class="form-group">
+            <label class="form-label" for="debtorInterest">Taxa de Juros ao Mês (%) *</label>
+            <input type="number" id="debtorInterest" class="form-control" inputmode="decimal" value="30" step="0.5" min="0" required>
+            <small style="font-size: 0.72rem; color: var(--text-muted);">Padrão de 30% pré-configurado</small>
+          </div>
+
+          <!-- Caixa de Seleção: Pagamento na Diária -->
+          <div class="form-group">
+            <label class="diaria-selector-card" for="debtorIsDaily">
+              <input type="checkbox" id="debtorIsDaily" checked>
+              <div>
+                <strong style="color: #ffffff; font-size: 0.88rem;">Pagamento na Diária</strong>
+                <p style="font-size: 0.73rem; color: var(--text-muted); margin-top: 1px;">
+                  30% fixo dividido pela quantidade de dias escolhida
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <!-- Se Diária: Quantos Dias para Pagamento -->
+          <div class="form-group" id="containerDailyDays">
+            <label class="form-label" for="debtorDailyDays">Número de Dias para Pagamento Total *</label>
+            <input type="number" id="debtorDailyDays" class="form-control" inputmode="numeric" value="30" min="1" max="365">
+            <small style="font-size: 0.72rem; color: var(--green-primary);">
+              Ex: Empréstimo de R$ 1.000 a 30% = R$ 1.300 total, dividido pela quantidade de dias
+            </small>
+          </div>
+
+          <!-- Se Mensal: Quantas Parcelas Mensais -->
+          <div class="form-group" id="containerMonthlyInstallments" style="display: none;">
+            <label class="form-label" for="debtorInstallments">Quantidade de Parcelas (Meses) *</label>
+            <input type="number" id="debtorInstallments" class="form-control" inputmode="numeric" value="1" min="1" max="72">
+          </div>
+
+          <!-- Data de Início / 1º Pagamento -->
+          <div class="form-group">
+            <label class="form-label" for="debtorStartDate">Data do 1º Pagamento / Vencimento *</label>
+            <input type="date" id="debtorStartDate" class="form-control" required>
+          </div>
+
+          <!-- Observações / Garantia -->
+          <div class="form-group">
+            <label class="form-label" for="debtorNotes">Observações / Garantias (Opcional)</label>
+            <input type="text" id="debtorNotes" class="form-control" placeholder="Ex: Comércio, garantia celular, etc.">
+          </div>
+
+          <!-- SIMULAÇÃO INSTANTÂNEA -->
+          <div class="calc-preview-card">
+            <div class="calc-preview-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              <span>Simulação do Empréstimo</span>
+            </div>
+            <div class="calc-preview-row">
+              <span>Valor dos Juros:</span>
+              <strong id="previewInterestVal" style="color: var(--green-primary);">R$ 0,00</strong>
+            </div>
+            <div class="calc-preview-row">
+              <span>Total a Receber:</span>
+              <strong id="previewTotalVal" style="color: #ffffff;">R$ 0,00</strong>
+            </div>
+            <div class="calc-preview-row">
+              <span>Valor da Parcela/Dia:</span>
+              <strong id="previewInstallmentVal" style="color: #ffffff;">R$ 0,00</strong>
+            </div>
+            <p id="previewDetailText" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 0.4rem; border-top: 1px dashed var(--border-subtle); padding-top: 0.4rem;">
+              Preencha os valores para ver a simulação calculada.
+            </p>
+          </div>
+
+        </div>
+
+        <div class="modal-sheet-footer">
+          <button type="button" class="sheet-action-btn" data-close="modalNewClient" style="width: 35%; justify-content: center; margin-top: 0;">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-new-client" style="width: 65%; margin-top: 0;">
+            Salvar Cliente
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       ACTION SHEET DO CLIENTE (MENU DE 3 PONTINHOS)
+       ==================================================================== -->
+  <div class="modal-overlay" id="modalActionSheet">
+    <div class="modal-sheet-content" style="max-height: 80vh;">
+      <div class="modal-sheet-header">
+        <div>
+          <h3 class="modal-sheet-title" id="actionSheetClientName">Cliente</h3>
+          <p id="actionSheetSubDetails" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Opções de cobrança e gestão</p>
+        </div>
+        <button type="button" class="modal-sheet-close" data-close="modalActionSheet">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="modal-sheet-body">
+        <div class="action-sheet-menu">
+          <!-- Cobrar no WhatsApp -->
+          <a href="#" id="actionBtnWhatsApp" target="_blank" rel="noopener noreferrer" class="sheet-action-btn btn-zap-color">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.52 3.48A11.93 11.93 0 0 0 12.06 0C5.46 0 .09 5.37.09 11.97c0 2.11.55 4.17 1.6 5.99L0 24l6.2-1.63c1.74.95 3.71 1.45 5.73 1.45 6.6 0 11.97-5.37 11.97-11.97 0-3.2-.1.25-11.97-11.97-3.38-3.37zm-8.46 18.5c-1.8 0-3.56-.48-5.1-1.4l-.37-.22-3.79 1 1.01-3.69-.24-.38a9.92 9.92 0 0 1-1.52-5.32c0-5.49 4.47-9.96 9.97-9.96 2.66 0 5.16 1.04 7.04 2.92a9.92 9.92 0 0 1 2.92 7.04c0 5.49-4.47 9.96-9.92 9.96zm5.45-7.46c-.3-.15-1.77-.87-2.04-.97-.28-.1-.48-.15-.68.15-.2.3-.78.97-.95 1.17-.18.2-.35.22-.65.08-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.68-1.64-.93-2.25-.24-.59-.49-.51-.68-.52h-.58c-.2 0-.52.07-.8.38-.28.3-1.05 1.03-1.05 2.51s1.08 2.91 1.23 3.11c.15.2 2.12 3.24 5.14 4.54.72.31 1.28.5 1.72.64.72.23 1.38.2 1.9.12.58-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z"/>
+            </svg>
+            <span>Enviar Cobrança no WhatsApp</span>
+          </a>
+
+          <!-- Dar Baixa na Próxima Parcela -->
+          <button type="button" id="actionBtnPayNext" class="sheet-action-btn" style="background: rgba(34, 197, 94, 0.15); color: var(--green-primary); border-color: rgba(34, 197, 94, 0.3);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+            <span>Receber Próxima Parcela</span>
+          </button>
+
+          <!-- Ver Todas as Parcelas -->
+          <button type="button" id="actionBtnViewInstallments" class="sheet-action-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            <span>Ver Histórico de Parcelas</span>
+          </button>
+
+          <!-- Excluir Cliente / Empréstimo -->
+          <button type="button" id="actionBtnDelete" class="sheet-action-btn btn-danger-color">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <span>Excluir Cadastro</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL DE PARCELAS DETALHADAS
+       ==================================================================== -->
+  <div class="modal-overlay" id="modalInstallments">
+    <div class="modal-sheet-content">
+      <div class="modal-sheet-header">
+        <div>
+          <h3 class="modal-sheet-title" id="instModalDebtorName">Parcelas</h3>
+          <p id="instModalDebtorDetails" style="font-size: 0.76rem; color: var(--text-muted);"></p>
+        </div>
+        <button type="button" class="modal-sheet-close" data-close="modalInstallments">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="modal-sheet-body" style="padding: 0.75rem;">
+        <div id="installmentsListCards" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <!-- Parcelas renderizadas via JavaScript -->
+        </div>
+      </div>
+
+      <div class="modal-sheet-footer">
+        <button type="button" class="btn-new-client" data-close="modalInstallments" style="margin-top: 0; background: var(--bg-input); border: 1px solid var(--border-subtle); color: #ffffff;">
+          Fechar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTAINER DE TOASTS -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ====================================================================
+       INICIALIZAÇÃO DO FIREBASE & REALTIME DATABASE
+       ==================================================================== -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics-compat.js"></script>
+  <script>
+    // Credenciais oficiais do Firebase do projeto
+    const firebaseConfig = {
+      apiKey: "AIzaSyBi8A9orqz-tA-FLHwxT6fMqTnzKpBeZMc",
+      authDomain: "gordinhos-finacneiro.firebaseapp.com",
+      databaseURL: "https://gordinhos-finacneiro-default-rtdb.firebaseio.com",
+      projectId: "gordinhos-finacneiro",
+      storageBucket: "gordinhos-finacneiro.firebasestorage.app",
+      messagingSenderId: "241516221852",
+      appId: "1:241516221852:web:944989260e1d6809fd6459",
+      measurementId: "G-6EVNR14FD1"
+    };
+
+    let firebaseApp = null;
+    let firebaseDb = null;
+    let database = null;
+    let db = null;
+    let firebaseAnalytics = null;
+
+    try {
+      if (typeof firebase !== 'undefined' && firebase.initializeApp) {
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+
+        // Inicializa Realtime Database
+        if (typeof firebase.database === 'function') {
+          database = firebase.database();
+          db = database;
+          firebaseDb = database;
+        }
+
+        try {
+          if (firebase.analytics) {
+            firebaseAnalytics = firebase.analytics();
+          }
+        } catch (e) {
+          // Analytics requer HTTPS ou localhost
+        }
+
+        window.firebaseApp = firebaseApp;
+        window.firebaseConfig = firebaseConfig;
+        window.firebaseDb = database;
+        window.firebaseDatabase = database;
+        window.database = database;
+        window.db = db;
+        window.firebaseAnalytics = firebaseAnalytics;
+        console.log("🔥 Firebase & Realtime Database inicializados com sucesso:", firebaseApp.name);
+      }
+    } catch (err) {
+      console.warn("Aviso Firebase:", err.message);
+    }
+  </script>
+
+  <!-- ====================================================================
+       MOTOR DO APLICATIVO EM PORTUGUÊS (BR)
+       ==================================================================== -->
+  <script>
+const STORAGE_KEY = 'gordinhos_financeiro_debtors_v2';
+
+let debtors = [];
+let currentFilter = 'all';
+let searchQuery = '';
+let activeDebtorForAction = null;
+
+function initializeApp() {
+  try {
+    initDateInput();
+    loadData();
+    setupEventListeners();
+    updateLivePreview();
+    render();
+  } catch (err) {
+    console.error('Erro na inicialização do sistema:', err);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
+}
+
+function initDateInput() {
+  const dateInput = document.getElementById('debtorStartDate');
+  if (dateInput) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    dateInput.value = tomorrow.toISOString().split('T')[0];
+  }
+}
+
+function loadData() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      debtors = JSON.parse(saved);
+    } catch (e) {
+      console.error('Erro ao ler dados salvos:', e);
+      debtors = [];
+    }
+  }
+
+  if (!debtors || debtors.length === 0) {
+    loadSampleData();
+  }
+
+  // Conecta ao Realtime Database para sincronizar dados em tempo real
+  syncWithRealtimeDatabase();
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(debtors));
+
+  // Sincroniza com Firebase Realtime Database
+  if (window.firebaseDb && typeof window.firebaseDb.ref === 'function') {
+    try {
+      window.firebaseDb.ref('debtors').set(debtors).then(() => {
+        console.log('☁️ Registros salvos no Realtime Database com sucesso!');
+      }).catch(err => {
+        console.warn('Aviso Realtime Database (offline ou permissão):', err.message);
+      });
+    } catch (e) {
+      console.warn('Erro ao salvar no Realtime Database:', e);
+    }
+  }
+}
+
+function syncWithRealtimeDatabase() {
+  if (window.firebaseDb && typeof window.firebaseDb.ref === 'function') {
+    try {
+      window.firebaseDb.ref('debtors').on('value', (snapshot) => {
+        const cloudData = snapshot.val();
+        if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
+          debtors = cloudData;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(debtors));
+          render();
+          console.log('☁️ Dados atualizados a partir do Realtime Database em tempo real!');
+        }
+      }, (error) => {
+        console.info('Aviso conexão Realtime Database:', error.message);
+      });
+    } catch (e) {
+      console.warn('Erro ao escutar Realtime Database:', e);
+    }
+  }
+}
+
+function loadSampleData() {
+  const today = new Date();
+
+  const overdueDate = new Date(today);
+  overdueDate.setDate(today.getDate() - 5);
+
+  const todayDate = new Date(today);
+
+  const futureDate1 = new Date(today);
+  futureDate1.setDate(today.getDate() + 3);
+
+  const futureDate2 = new Date(today);
+  futureDate2.setDate(today.getDate() + 10);
+
+  const futureDate3 = new Date(today);
+  futureDate3.setDate(today.getDate() + 18);
+
+  debtors = [
+    {
+      id: 'deb-sample-1',
+      name: 'Lulu',
+      phone: '11988887777',
+      principal: 1000,
+      interestRate: 30,
+      installmentsCount: 20,
+      isDaily: true,
+      startDate: futureDate1.toISOString().split('T')[0],
+      notes: 'Banca comercial',
+      createdAt: new Date().toISOString(),
+      totalAmount: 1300,
+      installmentAmount: 65,
+      installments: generateDailyInstallments(1000, 1300, 20, futureDate1.toISOString().split('T')[0])
+    },
+    {
+      id: 'deb-sample-2',
+      name: 'Ana Souza',
+      phone: '21977776666',
+      principal: 1500,
+      interestRate: 30,
+      installmentsCount: 30,
+      isDaily: true,
+      startDate: todayDate.toISOString().split('T')[0],
+      notes: 'Diária comercial',
+      createdAt: new Date().toISOString(),
+      totalAmount: 1950,
+      installmentAmount: 65,
+      installments: generateDailyInstallments(1500, 1950, 30, todayDate.toISOString().split('T')[0])
+    },
+    {
+      id: 'deb-sample-3',
+      name: 'Bruno Lima',
+      phone: '31966665555',
+      principal: 2000,
+      interestRate: 30,
+      installmentsCount: 3,
+      isDaily: false,
+      startDate: futureDate2.toISOString().split('T')[0],
+      notes: 'Contrato mensal',
+      createdAt: new Date().toISOString(),
+      totalAmount: 3800,
+      installmentAmount: 1266.67,
+      installments: generateMonthlyInstallments(2000, 3800, 3, futureDate2.toISOString().split('T')[0])
+    },
+    {
+      id: 'deb-sample-4',
+      name: 'Carla Dias',
+      phone: '41955554444',
+      principal: 800,
+      interestRate: 30,
+      installmentsCount: 15,
+      isDaily: true,
+      startDate: futureDate3.toISOString().split('T')[0],
+      notes: 'Diária autônoma',
+      createdAt: new Date().toISOString(),
+      totalAmount: 1040,
+      installmentAmount: 69.33,
+      installments: generateDailyInstallments(800, 1040, 15, futureDate3.toISOString().split('T')[0])
+    },
+    {
+      id: 'deb-sample-5',
+      name: 'Diego Rocha',
+      phone: '51944443333',
+      principal: 2500,
+      interestRate: 30,
+      installmentsCount: 4,
+      isDaily: false,
+      startDate: overdueDate.toISOString().split('T')[0],
+      notes: 'Parcela em atraso há 5 dias',
+      createdAt: new Date().toISOString(),
+      totalAmount: 5500,
+      installmentAmount: 1375,
+      installments: [
+        { number: 1, dueDate: overdueDate.toISOString().split('T')[0], amount: 1375, paid: false, paidAt: null },
+        { number: 2, dueDate: addMonths(overdueDate, 1), amount: 1375, paid: false, paidAt: null },
+        { number: 3, dueDate: addMonths(overdueDate, 2), amount: 1375, paid: false, paidAt: null },
+        { number: 4, dueDate: addMonths(overdueDate, 3), amount: 1375, paid: false, paidAt: null }
+      ]
+    }
+  ];
+
+  saveData();
+}
+
+function getTodayString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateBR(dateStr) {
+  if (!dateStr) return '--';
+  const parts = String(dateStr).split('T')[0].split('-');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function formatCurrency(val) {
+  return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function addMonths(dateObj, months) {
+  const d = new Date(dateObj);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split('T')[0];
+}
+
+function addDays(dateStr, days) {
+  const [year, month, day] = String(dateStr).split('-').map(Number);
+  const d = new Date(year, month - 1, day);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${da}`;
+}
+
+function getDaysDiff(dateStrA, dateStrB) {
+  if (!dateStrA || !dateStrB) return 0;
+  try {
+    const cleanA = String(dateStrA).split('T')[0];
+    const cleanB = String(dateStrB).split('T')[0];
+    const [yA, mA, dA] = cleanA.split('-').map(Number);
+    const [yB, mB, dB] = cleanB.split('-').map(Number);
+    const d1 = new Date(yA, mA - 1, dA);
+    const d2 = new Date(yB, mB - 1, dB);
+    const diffDays = Math.round((d1 - d2) / (1000 * 60 * 60 * 24));
+    return isNaN(diffDays) ? 0 : diffDays;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function generateDailyInstallments(principal, totalAmount, count, startDate) {
+  const list = [];
+  const installmentAmount = Math.round((totalAmount / count) * 100) / 100;
+  let remainingTotal = totalAmount;
+
+  for (let i = 0; i < count; i++) {
+    const isLast = i === count - 1;
+    const amount = isLast ? Math.round(remainingTotal * 100) / 100 : installmentAmount;
+    remainingTotal -= amount;
+
+    list.push({
+      number: i + 1,
+      dueDate: addDays(startDate, i),
+      amount: amount,
+      paid: false,
+      paidAt: null
+    });
+  }
+  return list;
+}
+
+function generateMonthlyInstallments(principal, totalAmount, count, startDate) {
+  const list = [];
+  const installmentAmount = Math.round((totalAmount / count) * 100) / 100;
+  let remainingTotal = totalAmount;
+
+  const [y, m, d] = String(startDate).split('-').map(Number);
+  const baseDate = new Date(y, m - 1, d);
+
+  for (let i = 0; i < count; i++) {
+    const isLast = i === count - 1;
+    const amount = isLast ? Math.round(remainingTotal * 100) / 100 : installmentAmount;
+    remainingTotal -= amount;
+
+    const dueDateStr = addMonths(baseDate, i);
+
+    list.push({
+      number: i + 1,
+      dueDate: dueDateStr,
+      amount: amount,
+      paid: false,
+      paidAt: null
+    });
+  }
+  return list;
+}
+
+function evaluateDebtorStatus(debtor) {
+  const installments = debtor.installments || [];
+  const totalCount = installments.length;
+  const paidCount = installments.filter(i => i.paid).length;
+
+  if (paidCount === totalCount && totalCount > 0) {
+    return {
+      status: 'completed',
+      label: 'QUITADO',
+      pillClass: 'status-quitado',
+      nextInstallment: null,
+      daysOverdue: 0,
+      paidCount,
+      totalCount,
+      remainingBalance: 0
+    };
+  }
+
+  const unpaidInstallments = installments.filter(i => !i.paid);
+  if (unpaidInstallments.length === 0) {
+    return {
+      status: 'completed',
+      label: 'QUITADO',
+      pillClass: 'status-quitado',
+      nextInstallment: null,
+      daysOverdue: 0,
+      paidCount,
+      totalCount,
+      remainingBalance: 0
+    };
+  }
+
+  const todayStr = getTodayString();
+  const next = unpaidInstallments[0];
+  const daysDiff = getDaysDiff(next.dueDate, todayStr);
+  const remainingBalance = unpaidInstallments.reduce((acc, curr) => acc + curr.amount, 0);
+
+  if (daysDiff < 0) {
+    const daysOverdue = Math.abs(daysDiff);
+    return {
+      status: 'overdue',
+      label: `VENCIDO (${daysOverdue}d)`,
+      pillClass: 'status-vencido',
+      nextInstallment: next,
+      daysOverdue,
+      paidCount,
+      totalCount,
+      remainingBalance
+    };
+  } else if (daysDiff === 0) {
+    return {
+      status: 'due_today',
+      label: 'VENCE HOJE',
+      pillClass: 'status-vence-hoje',
+      nextInstallment: next,
+      daysOverdue: 0,
+      paidCount,
+      totalCount,
+      remainingBalance
+    };
+  } else {
+    return {
+      status: 'on_time',
+      label: 'ATIVO',
+      pillClass: 'status-ativo',
+      nextInstallment: next,
+      daysOverdue: 0,
+      paidCount,
+      totalCount,
+      remainingBalance
+    };
+  }
+}
+
+function updateLivePreview() {
+  const principal = parseFloat(document.getElementById('debtorAmount').value) || 0;
+  const interestRate = parseFloat(document.getElementById('debtorInterest').value) || 0;
+  const isDaily = document.getElementById('debtorIsDaily').checked;
+
+  const containerMonthly = document.getElementById('containerMonthlyInstallments');
+  const containerDaily = document.getElementById('containerDailyDays');
+  if (containerMonthly && containerDaily) {
+    if (isDaily) {
+      containerDaily.style.display = 'block';
+      containerMonthly.style.display = 'none';
+    } else {
+      containerDaily.style.display = 'none';
+      containerMonthly.style.display = 'block';
+    }
+  }
+
+  if (principal <= 0) {
+    document.getElementById('previewInterestVal').textContent = 'R$ 0,00';
+    document.getElementById('previewTotalVal').textContent = 'R$ 0,00';
+    document.getElementById('previewInstallmentVal').textContent = 'R$ 0,00';
+    document.getElementById('previewDetailText').textContent = 'Preencha os dados acima para simular.';
+    return;
+  }
+
+  let totalInterest = 0;
+  let totalAmount = 0;
+  let installmentVal = 0;
+
+  if (isDaily) {
+    const days = parseInt(document.getElementById('debtorDailyDays').value, 10) || 1;
+    totalInterest = principal * (interestRate / 100);
+    totalAmount = principal + totalInterest;
+    installmentVal = totalAmount / days;
+
+    document.getElementById('previewDetailText').innerHTML = 
+      `Diária: <strong>${formatCurrency(totalAmount)}</strong> em <strong>${days} dias</strong> (${formatCurrency(installmentVal)}/dia).`;
+  } else {
+    const installments = parseInt(document.getElementById('debtorInstallments').value, 10) || 1;
+    totalInterest = principal * (interestRate / 100) * installments;
+    totalAmount = principal + totalInterest;
+    installmentVal = totalAmount / installments;
+
+    document.getElementById('previewDetailText').innerHTML = 
+      `Mensal: ${installments}x de ${formatCurrency(installmentVal)} (${interestRate}% ao mês).`;
+  }
+
+  document.getElementById('previewInterestVal').textContent = formatCurrency(totalInterest);
+  document.getElementById('previewTotalVal').textContent = formatCurrency(totalAmount);
+  document.getElementById('previewInstallmentVal').textContent = formatCurrency(installmentVal);
+}
+
+function render() {
+  renderMetricsBar();
+  renderClientsList();
+  renderDashboardOverview();
+  renderCobrancasFocus();
+}
+
+function renderMetricsBar() {
+  let totalClients = debtors.length;
+  let activeClients = 0;
+  let overdueClients = 0;
+
+  debtors.forEach(debtor => {
+    const info = evaluateDebtorStatus(debtor);
+    if (info.status === 'overdue') {
+      overdueClients++;
+    } else {
+      activeClients++;
+    }
+  });
+
+  document.getElementById('metricTotalClients').textContent = totalClients;
+  document.getElementById('metricActiveClients').textContent = activeClients;
+  document.getElementById('metricOverdueClients').textContent = overdueClients;
+}
+
+function renderDashboardOverview() {
+  let totalPrincipal = 0;
+  let totalReceivable = 0;
+  let totalOverdue = 0;
+  let totalUpcoming = 0;
+  let countOverdue = 0;
+  let countUpcoming = 0;
+
+  debtors.forEach(d => {
+    const info = evaluateDebtorStatus(d);
+    totalPrincipal += d.principal || 0;
+    totalReceivable += info.remainingBalance;
+
+    if (info.status === 'overdue') {
+      totalOverdue += info.remainingBalance;
+      countOverdue++;
+    } else if (info.status === 'due_today') {
+      totalUpcoming += info.remainingBalance;
+      countUpcoming++;
+    }
+  });
+
+  document.getElementById('dashTotalPrincipal').textContent = formatCurrency(totalPrincipal);
+  document.getElementById('dashTotalContracts').textContent = `${debtors.length} contratos ativos`;
+
+  document.getElementById('dashTotalReceivable').textContent = formatCurrency(totalReceivable);
+  document.getElementById('dashTotalProfit').textContent = `Retorno previsto`;
+
+  document.getElementById('dashTotalOverdue').textContent = formatCurrency(totalOverdue);
+  document.getElementById('dashCountOverdue').textContent = `${countOverdue} cliente(s) em atraso`;
+
+  document.getElementById('dashTotalUpcoming').textContent = formatCurrency(totalUpcoming);
+  document.getElementById('dashCountUpcoming').textContent = `${countUpcoming} cobrança(s) hoje`;
+}
+
+function renderClientsList() {
+  const container = document.getElementById('clientsListContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const filtered = debtors.filter(debtor => {
+    const info = evaluateDebtorStatus(debtor);
+
+    if (currentFilter !== 'all') {
+      if (currentFilter === 'overdue' && info.status !== 'overdue') return false;
+      if (currentFilter === 'due_today' && info.status !== 'due_today') return false;
+      if (currentFilter === 'on_time' && info.status !== 'on_time') return false;
+      if (currentFilter === 'completed' && info.status !== 'completed') return false;
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchName = debtor.name.toLowerCase().includes(q);
+      const matchPhone = debtor.phone && debtor.phone.includes(q);
+      if (!matchName && !matchPhone) return false;
+    }
+
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.6;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </div>
+        <p style="font-size: 0.9rem; font-weight: 600;">Nenhum cliente encontrado</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(debtor => {
+    const info = evaluateDebtorStatus(debtor);
+    const initial = (debtor.name.trim().charAt(0) || 'C').toUpperCase();
+    const nextDueDate = info.nextInstallment ? formatDateBR(info.nextInstallment.dueDate) : 'Quitado';
+    const nextAmount = info.nextInstallment ? formatCurrency(info.nextInstallment.amount) : 'R$ 0,00';
+    const freqTag = debtor.isDaily ? 'Diária' : 'Mensal';
+
+    const row = document.createElement('div');
+    row.className = 'client-row-item';
+    row.dataset.id = debtor.id;
+
+    row.innerHTML = `
+      <div class="client-left-wrap">
+        <div class="client-avatar-box">${initial}</div>
+        <div class="client-details-wrap">
+          <span class="client-name-text">${escapeHTML(debtor.name)}</span>
+          <span class="client-sub-info">
+            ${freqTag} • ${nextAmount} • Venc: ${nextDueDate}
+          </span>
+        </div>
+      </div>
+
+      <div class="client-right-wrap">
+        <span class="status-pill ${info.pillClass}">
+          ${info.label}
+        </span>
+        <button type="button" class="btn-dots-menu" title="Opções" data-action-menu="${debtor.id}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="2"></circle>
+            <circle cx="19" cy="12" r="2"></circle>
+            <circle cx="5" cy="12" r="2"></circle>
+          </svg>
+        </button>
+      </div>
+    `;
+
+    container.appendChild(row);
+  });
+}
+
+function renderCobrancasFocus() {
+  const container = document.getElementById('cobrancasFocusList');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const focusList = debtors.filter(d => {
+    const info = evaluateDebtorStatus(d);
+    return info.status === 'overdue' || info.status === 'due_today';
+  });
+
+  if (focusList.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 2.5rem 1rem; color: var(--green-primary);">
+        <div style="margin-bottom: 0.5rem;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        </div>
+        <p style="font-size: 0.95rem; font-weight: 700;">Tudo em dia!</p>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Nenhum cliente com pagamento vencido hoje.</p>
+      </div>
+    `;
+    return;
+  }
+
+  focusList.forEach(debtor => {
+    const info = evaluateDebtorStatus(debtor);
+    const initial = (debtor.name.trim().charAt(0) || 'C').toUpperCase();
+    const nextDueDate = info.nextInstallment ? formatDateBR(info.nextInstallment.dueDate) : '--';
+    const nextAmount = info.nextInstallment ? formatCurrency(info.nextInstallment.amount) : 'R$ 0,00';
+    const waUrl = buildWhatsAppLink(debtor, info);
+
+    const row = document.createElement('div');
+    row.className = 'client-row-item';
+    row.innerHTML = `
+      <div class="client-left-wrap">
+        <div class="client-avatar-box" style="border-color: ${info.status === 'overdue' ? 'var(--red-alert)' : 'var(--yellow-warning)'};">
+          ${initial}
+        </div>
+        <div class="client-details-wrap">
+          <span class="client-name-text">${escapeHTML(debtor.name)}</span>
+          <span class="client-sub-info" style="color: ${info.status === 'overdue' ? '#f87171' : '#fbbf24'}; font-weight: 600;">
+            ${nextAmount} • Venc: ${nextDueDate}
+          </span>
+        </div>
+      </div>
+
+      <div class="client-right-wrap">
+        <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="sheet-action-btn btn-zap-color" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; width: auto;">
+          Zap
+        </a>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function buildWhatsAppLink(debtor, info) {
+  if (!debtor.phone) return '#';
+  const cleanPhone = debtor.phone.replace(/\D/g, '');
+  if (!cleanPhone) return '#';
+
+  if (!info.nextInstallment) {
+    const msgQuitado = 
+`🏦 *GORDINHOS FINANCEIRO*
+Olá, *${debtor.name}*! Tudo bem?
+
+Passando para parabenizá-lo(a)! Seu empréstimo foi totalmente *QUITADO*! ✅
+Agradecemos a sua pontualidade e parceria!`;
+    return `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msgQuitado)}`;
+  }
+
+  const nextDueDate = formatDateBR(info.nextInstallment.dueDate);
+  const nextAmount = formatCurrency(info.nextInstallment.amount);
+  const remainingBalance = formatCurrency(info.remainingBalance);
+  const remainingCount = info.totalCount - info.paidCount;
+
+  let headerStatus = '';
+  if (info.status === 'overdue') {
+    headerStatus = `🔴 *AVISO DE COBRANÇA - PARCELA EM ATRASO*\n⚠️ *Atrasada há:* ${info.daysOverdue} ${info.daysOverdue === 1 ? 'dia' : 'dias'}`;
+  } else if (info.status === 'due_today') {
+    headerStatus = `🟡 *LEMBRETE DE PAGAMENTO*\n⏰ *Sua parcela vence HOJE!*`;
+  } else {
+    headerStatus = `🗓️ *Aviso de Vencimento de Parcela*`;
+  }
+
+  const msgText = 
+`🏦 *GORDINHOS FINANCEIRO*
+Olá, *${debtor.name}*! Tudo bem?
+
+${headerStatus}
+
+📋 *DETALHES DA SUA COBRANÇA:*
+━━━━━━━━━━━━━━━━━━━━━━
+💰 *Valor da Parcela:* ${nextAmount}
+📅 *Data de Vencimento:* ${nextDueDate}
+📊 *Parcelas:* ${info.paidCount} pagas | *${remainingCount} restantes* (Total: ${info.totalCount})
+💳 *Saldo Devedor Restante:* ${remainingBalance}
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pedimos a gentileza de efetuar o pagamento e nos enviar o comprovante por aqui.
+
+_Caso o pagamento já tenha sido realizado, por favor desconsidere este aviso._
+Muito obrigado! 👍`;
+
+  return `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msgText)}`;
+}
+
+function openActionSheet(debtorId) {
+  const debtor = debtors.find(d => d.id === debtorId);
+  if (!debtor) return;
+
+  activeDebtorForAction = debtor;
+  const info = evaluateDebtorStatus(debtor);
+
+  document.getElementById('actionSheetClientName').textContent = debtor.name;
+  document.getElementById('actionSheetSubDetails').textContent = 
+    `${debtor.isDaily ? 'Diária' : 'Mensal'} • Total: ${formatCurrency(debtor.totalAmount)} • Saldo: ${formatCurrency(info.remainingBalance)}`;
+
+  const zapBtn = document.getElementById('actionBtnWhatsApp');
+  zapBtn.href = buildWhatsAppLink(debtor, info);
+
+  const payBtn = document.getElementById('actionBtnPayNext');
+  if (info.nextInstallment) {
+    payBtn.style.display = 'flex';
+    payBtn.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle></svg>
+      <span>Receber Parcela #${info.nextInstallment.number} (${formatCurrency(info.nextInstallment.amount)})</span>
+    `;
+  } else {
+    payBtn.style.display = 'none';
+  }
+
+  openModal('modalActionSheet');
+}
+
+function openInstallmentsModal(debtorId) {
+  const debtor = debtors.find(d => d.id === debtorId);
+  if (!debtor) return;
+
+  activeDebtorForAction = debtor;
+  const info = evaluateDebtorStatus(debtor);
+
+  document.getElementById('instModalDebtorName').textContent = debtor.name;
+  document.getElementById('instModalDebtorDetails').textContent = 
+    `${debtor.isDaily ? 'Diária' : 'Mensal'} • Total: ${formatCurrency(debtor.totalAmount)} • ${info.paidCount}/${info.totalCount} pagas`;
+
+  const container = document.getElementById('installmentsListCards');
+  container.innerHTML = '';
+
+  const todayStr = getTodayString();
+
+  debtor.installments.forEach(inst => {
+    const card = document.createElement('div');
+    card.style.background = 'var(--bg-input)';
+    card.style.border = '1px solid var(--border-subtle)';
+    card.style.borderRadius = '8px';
+    card.style.padding = '0.75rem 0.9rem';
+    card.style.display = 'flex';
+    card.style.justifyContent = 'space-between';
+    card.style.alignItems = 'center';
+
+    let statusText = '';
+    let statusStyle = '';
+
+    if (inst.paid) {
+      statusText = 'Paga';
+      statusStyle = 'color: var(--green-primary); font-weight: 700;';
+    } else {
+      const diff = getDaysDiff(inst.dueDate, todayStr);
+      if (diff < 0) {
+        statusText = `Vencida (${Math.abs(diff)}d)`;
+        statusStyle = 'color: var(--red-alert); font-weight: 700;';
+      } else if (diff === 0) {
+        statusText = 'Vence Hoje';
+        statusStyle = 'color: var(--yellow-warning); font-weight: 700;';
+      } else {
+        statusText = 'Pendente';
+        statusStyle = 'color: var(--text-muted);';
+      }
+    }
+
+    card.innerHTML = `
+      <div>
+        <div style="font-size: 0.9rem; font-weight: 700; color: #ffffff;">
+          Parcela #${inst.number} - ${formatCurrency(inst.amount)}
+        </div>
+        <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
+          Vencimento: ${formatDateBR(inst.dueDate)}
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span style="font-size: 0.75rem; ${statusStyle}">${statusText}</span>
+        <button type="button" class="btn-new-client" data-toggle-inst="${inst.number}" style="margin-top: 0; padding: 0.4rem 0.7rem; font-size: 0.75rem; width: auto; background: ${inst.paid ? 'transparent' : 'var(--green-primary)'}; border: 1px solid ${inst.paid ? 'var(--border-subtle)' : 'transparent'}; color: ${inst.paid ? 'var(--text-muted)' : '#072611'};">
+          ${inst.paid ? 'Desfazer' : 'Baixar'}
+        </button>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+
+  openModal('modalInstallments');
+}
+
+function toggleInstallmentPayment(installmentNumber) {
+  if (!activeDebtorForAction) return;
+
+  const inst = activeDebtorForAction.installments.find(i => i.number === installmentNumber);
+  if (!inst) return;
+
+  if (inst.paid) {
+    inst.paid = false;
+    inst.paidAt = null;
+    showToast(`Parcela #${inst.number} marcada como pendente.`, 'info');
+  } else {
+    inst.paid = true;
+    inst.paidAt = new Date().toISOString();
+    showToast(`Parcela #${inst.number} recebida com sucesso!`, 'success');
+  }
+
+  saveData();
+  render();
+  openInstallmentsModal(activeDebtorForAction.id);
+}
+
+function quickPayNextInstallment() {
+  if (!activeDebtorForAction) return;
+
+  const nextUnpaid = activeDebtorForAction.installments.find(i => !i.paid);
+  if (!nextUnpaid) {
+    showToast('Todas as parcelas já foram pagas!', 'info');
+    return;
+  }
+
+  nextUnpaid.paid = true;
+  nextUnpaid.paidAt = new Date().toISOString();
+
+  saveData();
+  render();
+  closeModal('modalActionSheet');
+  showToast(`Recebimento da parcela #${nextUnpaid.number} confirmado!`, 'success');
+}
+
+function deleteActiveDebtor() {
+  if (!activeDebtorForAction) return;
+
+  if (!confirm(`Deseja realmente excluir o cadastro de ${activeDebtorForAction.name}?`)) {
+    return;
+  }
+
+  debtors = debtors.filter(d => d.id !== activeDebtorForAction.id);
+  saveData();
+  render();
+  closeModal('modalActionSheet');
+  showToast('Cadastro excluído com sucesso.', 'info');
+}
+
+function handleNewClientSubmit(e) {
+  e.preventDefault();
+
+  const name = document.getElementById('debtorName').value.trim();
+  const phone = document.getElementById('debtorPhone').value.trim();
+  const principal = parseFloat(document.getElementById('debtorAmount').value);
+  const interestRate = parseFloat(document.getElementById('debtorInterest').value);
+  const isDaily = document.getElementById('debtorIsDaily').checked;
+  const startDate = document.getElementById('debtorStartDate').value;
+  const notes = document.getElementById('debtorNotes').value.trim();
+
+  if (!name || isNaN(principal) || principal <= 0 || isNaN(interestRate) || !startDate) {
+    alert('Por favor, preencha todos os campos obrigatórios.');
+    return;
+  }
+
+  let installmentsCount = 1;
+  let totalAmount = 0;
+  let installments = [];
+
+  if (isDaily) {
+    const days = parseInt(document.getElementById('debtorDailyDays').value, 10);
+    if (isNaN(days) || days <= 0) {
+      alert('Informe a quantidade de dias para a diária.');
+      return;
+    }
+    installmentsCount = days;
+    const totalInterest = principal * (interestRate / 100);
+    totalAmount = Math.round((principal + totalInterest) * 100) / 100;
+    installments = generateDailyInstallments(principal, totalAmount, installmentsCount, startDate);
+  } else {
+    const months = parseInt(document.getElementById('debtorInstallments').value, 10);
+    if (isNaN(months) || months <= 0) {
+      alert('Informe a quantidade de parcelas.');
+      return;
+    }
+    installmentsCount = months;
+    const totalInterest = principal * (interestRate / 100) * installmentsCount;
+    totalAmount = Math.round((principal + totalInterest) * 100) / 100;
+    installments = generateMonthlyInstallments(principal, totalAmount, installmentsCount, startDate);
+  }
+
+  const installmentAmount = Math.round((totalAmount / installmentsCount) * 100) / 100;
+
+  const newDebtor = {
+    id: 'deb-' + Date.now(),
+    name,
+    phone,
+    principal,
+    interestRate,
+    installmentsCount,
+    isDaily,
+    startDate,
+    notes,
+    createdAt: new Date().toISOString(),
+    totalAmount,
+    installmentAmount,
+    installments
+  };
+
+  debtors.unshift(newDebtor);
+  saveData();
+  render();
+
+  closeModal('modalNewClient');
+  document.getElementById('formNewClient').reset();
+  document.getElementById('debtorInterest').value = '30';
+  document.getElementById('debtorInstallments').value = '1';
+  document.getElementById('debtorDailyDays').value = '30';
+  initDateInput();
+  updateLivePreview();
+
+  showToast(`Cliente ${name} cadastrado com sucesso!`, 'success');
+}
+
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.add('active');
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.remove('active');
+}
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-10px)';
+    setTimeout(() => toast.remove(), 250);
+  }, 3000);
+}
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>'"]/g, 
+    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+  );
+}
+
+function switchTab(tabId) {
+  if (tabId === 'novo-emprestimo') {
+    openModal('modalNewClient');
+    return;
+  }
+
+  document.querySelectorAll('.nav-tab-item').forEach(btn => {
+    if (btn.dataset.tab === tabId) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  document.querySelectorAll('.view-panel').forEach(panel => {
+    panel.classList.remove('active-panel');
+  });
+
+  if (tabId === 'inicio') {
+    document.getElementById('viewInicio').classList.add('active-panel');
+  } else if (tabId === 'clientes') {
+    document.getElementById('viewClientes').classList.add('active-panel');
+  } else if (tabId === 'cobrancas') {
+    document.getElementById('viewCobrancas').classList.add('active-panel');
+  } else if (tabId === 'mais') {
+    document.getElementById('viewMais').classList.add('active-panel');
+  }
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function setupEventListeners() {
+  document.getElementById('btnOpenNewClient').addEventListener('click', () => {
+    openModal('modalNewClient');
+  });
+
+  document.querySelectorAll('[data-close]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-close');
+      closeModal(target);
+    });
+  });
+
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('active');
+      }
+    });
+  });
+
+  document.querySelectorAll('.nav-tab-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      switchTab(tab);
+    });
+  });
+
+  const form = document.getElementById('formNewClient');
+  form.addEventListener('submit', handleNewClientSubmit);
+
+  const inputsToListen = ['debtorAmount', 'debtorInterest', 'debtorInstallments', 'debtorIsDaily', 'debtorDailyDays'];
+  inputsToListen.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', updateLivePreview);
+      el.addEventListener('change', updateLivePreview);
+    }
+  });
+
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    searchQuery = e.target.value;
+    renderClientsList();
+  });
+
+  document.querySelectorAll('.chip-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.chip-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      renderClientsList();
+    });
+  });
+
+  document.getElementById('clientsListContainer').addEventListener('click', (e) => {
+    const btnDots = e.target.closest('[data-action-menu]');
+    if (btnDots) {
+      e.stopPropagation();
+      const id = btnDots.dataset.actionMenu;
+      openActionSheet(id);
+      return;
+    }
+
+    const row = e.target.closest('.client-row-item');
+    if (row) {
+      const id = row.dataset.id;
+      openInstallmentsModal(id);
+    }
+  });
+
+  document.getElementById('actionBtnPayNext').addEventListener('click', quickPayNextInstallment);
+  document.getElementById('actionBtnViewInstallments').addEventListener('click', () => {
+    if (activeDebtorForAction) {
+      closeModal('modalActionSheet');
+      openInstallmentsModal(activeDebtorForAction.id);
+    }
+  });
+  document.getElementById('actionBtnDelete').addEventListener('click', deleteActiveDebtor);
+
+  document.getElementById('installmentsListCards').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-toggle-inst]');
+    if (btn) {
+      const num = parseInt(btn.dataset.toggleInst, 10);
+      toggleInstallmentPayment(num);
+    }
+  });
+
+  document.getElementById('btnExportData').addEventListener('click', () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(debtors, null, 2));
+    const dl = document.createElement('a');
+    dl.setAttribute("href", dataStr);
+    dl.setAttribute("download", `gordinhos_backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(dl);
+    dl.click();
+    dl.remove();
+    showToast('Backup exportado com sucesso!', 'success');
+  });
+
+  document.getElementById('fileImportData').addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const imported = JSON.parse(event.target.result);
+          if (Array.isArray(imported)) {
+            debtors = imported;
+            saveData();
+            render();
+            showToast('Dados restaurados com sucesso!', 'success');
+          } else {
+            alert('Arquivo inválido.');
+          }
+        } catch (err) {
+          alert('Erro ao ler arquivo: ' + err.message);
+        }
+      };
+      reader.readAsText(e.target.files[0]);
+    }
+  });
+
+  // Sincronização manual com Realtime Database
+  const btnSync = document.getElementById('btnSyncFirebase');
+  if (btnSync) {
+    btnSync.addEventListener('click', () => {
+      showToast('Enviando dados para o Realtime Database...', 'info');
+      saveData();
+    });
+  }
+
+  document.getElementById('btnResetSampleData').addEventListener('click', () => {
+    if (confirm('Recarregar lista demonstrativa do JurosApp (Lulu, Ana Souza, Bruno Lima...)?')) {
+      loadSampleData();
+      render();
+      showToast('Dados demonstrativos restaurados!', 'success');
+    }
+  });
+}
+  </script>
+</body>
+</html>
