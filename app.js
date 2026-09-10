@@ -295,23 +295,31 @@ function initAuthSystem() {
     });
   }
 
-  // Abrir modal de alterar senha dentro do app
+  // Função global para abrir modal de alterar senha dentro do app
+  function openChangePasswordModal() {
+    openModal('modalChangePassword');
+    const errEl = document.getElementById('modalChangePwdError');
+    if (errEl) {
+      errEl.textContent = '';
+      errEl.classList.remove('active');
+    }
+    const curInput = document.getElementById('modalCurrentPassword');
+    const userEl = document.getElementById('modalNewUsername');
+    if (userEl) userEl.value = appUsername;
+    if (curInput) {
+      curInput.value = '';
+      setTimeout(() => curInput.focus(), 150);
+    }
+    const newPwdEl = document.getElementById('modalNewPassword');
+    if (newPwdEl) newPwdEl.value = '';
+    const confPwdEl = document.getElementById('modalConfirmPassword');
+    if (confPwdEl) confPwdEl.value = '';
+  }
+  window.openChangePasswordModal = openChangePasswordModal;
+
   const btnOpenChangeModal = document.getElementById('btnOpenChangePasswordModal');
   if (btnOpenChangeModal) {
-    btnOpenChangeModal.addEventListener('click', () => {
-      openModal('modalChangePassword');
-      const errEl = document.getElementById('modalChangePwdError');
-      if (errEl) errEl.classList.remove('active');
-      const curInput = document.getElementById('modalCurrentPassword');
-      const userEl = document.getElementById('modalNewUsername');
-      if (userEl) userEl.value = appUsername;
-      if (curInput) {
-        curInput.value = '';
-        setTimeout(() => curInput.focus(), 150);
-      }
-      document.getElementById('modalNewPassword').value = '';
-      document.getElementById('modalConfirmPassword').value = '';
-    });
+    btnOpenChangeModal.addEventListener('click', openChangePasswordModal);
   }
 
   // Salvar alteração de senha pelo modal interno
@@ -1266,12 +1274,18 @@ function handleNewClientSubmit(e) {
 
 function openModal(id) {
   const modal = document.getElementById(id);
-  if (modal) modal.classList.add('active');
+  if (modal) {
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  }
 }
 
 function closeModal(id) {
   const modal = document.getElementById(id);
-  if (modal) modal.classList.remove('active');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
 }
 
 function showToast(message, type = 'info') {

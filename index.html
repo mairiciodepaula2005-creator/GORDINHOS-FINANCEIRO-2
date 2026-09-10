@@ -1226,11 +1226,11 @@ body {
             Proteja suas informações com senha de acesso sincronizada na nuvem do Realtime Database.
           </p>
           <div style="display: flex; gap: 0.6rem;">
-            <button type="button" id="btnOpenChangePasswordModal" class="sheet-action-btn" style="flex: 1; justify-content: center; background: rgba(34, 197, 94, 0.12); color: var(--green-primary); border-color: rgba(34, 197, 94, 0.3);">
+            <button type="button" id="btnOpenChangePasswordModal" onclick="openChangePasswordModal()" class="sheet-action-btn" style="flex: 1; justify-content: center; background: rgba(34, 197, 94, 0.12); color: var(--green-primary); border-color: rgba(34, 197, 94, 0.3);">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
               <span>Alterar Senha</span>
             </button>
-            <button type="button" id="btnLockAppInside" class="sheet-action-btn btn-danger-color" style="flex: 1; justify-content: center;">
+            <button type="button" id="btnLockAppInside" onclick="lockApp()" class="sheet-action-btn btn-danger-color" style="flex: 1; justify-content: center;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
               <span>Bloquear Agora</span>
             </button>
@@ -1517,6 +1517,8 @@ body {
         </button>
       </div>
     </div>
+  </div>
+
   <!-- ====================================================================
        MODAL DE ALTERAÇÃO DE LOGIN E SENHA (DENTRO DO SISTEMA)
        ==================================================================== -->
@@ -1923,22 +1925,31 @@ function initAuthSystem() {
   }
 
   // Abrir modal de alterar senha dentro do app
+  // Função global para abrir modal de alterar senha dentro do app
+  function openChangePasswordModal() {
+    openModal('modalChangePassword');
+    const errEl = document.getElementById('modalChangePwdError');
+    if (errEl) {
+      errEl.textContent = '';
+      errEl.classList.remove('active');
+    }
+    const curInput = document.getElementById('modalCurrentPassword');
+    const userEl = document.getElementById('modalNewUsername');
+    if (userEl) userEl.value = appUsername;
+    if (curInput) {
+      curInput.value = '';
+      setTimeout(() => curInput.focus(), 150);
+    }
+    const newPwdEl = document.getElementById('modalNewPassword');
+    if (newPwdEl) newPwdEl.value = '';
+    const confPwdEl = document.getElementById('modalConfirmPassword');
+    if (confPwdEl) confPwdEl.value = '';
+  }
+  window.openChangePasswordModal = openChangePasswordModal;
+
   const btnOpenChangeModal = document.getElementById('btnOpenChangePasswordModal');
   if (btnOpenChangeModal) {
-    btnOpenChangeModal.addEventListener('click', () => {
-      openModal('modalChangePassword');
-      const errEl = document.getElementById('modalChangePwdError');
-      if (errEl) errEl.classList.remove('active');
-      const curInput = document.getElementById('modalCurrentPassword');
-      const userEl = document.getElementById('modalNewUsername');
-      if (userEl) userEl.value = appUsername;
-      if (curInput) {
-        curInput.value = '';
-        setTimeout(() => curInput.focus(), 150);
-      }
-      document.getElementById('modalNewPassword').value = '';
-      document.getElementById('modalConfirmPassword').value = '';
-    });
+    btnOpenChangeModal.addEventListener('click', openChangePasswordModal);
   }
 
   // Salvar alteração de senha pelo modal interno
@@ -2861,12 +2872,18 @@ function handleNewClientSubmit(e) {
 
 function openModal(id) {
   const modal = document.getElementById(id);
-  if (modal) modal.classList.add('active');
+  if (modal) {
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  }
 }
 
 function closeModal(id) {
   const modal = document.getElementById(id);
-  if (modal) modal.classList.remove('active');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
 }
 
 function showToast(message, type = 'info') {
