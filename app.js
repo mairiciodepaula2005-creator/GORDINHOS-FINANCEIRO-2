@@ -392,8 +392,14 @@ function initDateInput() {
 // DADOS E PERSISTÊNCIA (COM CARREGAMENTO IMEDIATO DO FIREBASE REALTIME DATABASE)
 // ==============================================================================
 
+let isFirebaseInitialLoadComplete = false;
+
 function processIncomingFirebaseDebtors(cloudData) {
-  if (!cloudData) return;
+  isFirebaseInitialLoadComplete = true;
+  if (!cloudData) {
+    console.log('☁️ Firebase conectado: Nenhum registro no nó /debtors.');
+    return;
+  }
   let list = [];
   if (Array.isArray(cloudData)) {
     list = cloudData.filter(d => d && typeof d === 'object' && d.name);
@@ -422,21 +428,18 @@ function loadData() {
     }
   }
 
-  // 1. CARREGAMENTO IMEDIATO VIA REST NA ABERTURA DO SITE
-  fetch('https://gordinhos-finacneiro-default-rtdb.firebaseio.com/debtors.json')
+  // 1. CARREGAMENTO IMEDIATO VIA REST NA ABERTURA DO SITE (SEM CACHE)
+  fetch('https://gordinhos-finacneiro-default-rtdb.firebaseio.com/debtors.json', { cache: 'no-store' })
     .then(res => res.json())
     .then(cloudData => {
       if (cloudData) {
         processIncomingFirebaseDebtors(cloudData);
-      } else if (!debtors || debtors.length === 0) {
-        loadSampleData();
+      } else {
+        isFirebaseInitialLoadComplete = true;
       }
     })
     .catch(err => {
-      console.info('Conexão Firebase REST:', err.message);
-      if (!debtors || debtors.length === 0) {
-        loadSampleData();
-      }
+      console.info('Conexão Firebase REST aguardando SDK:', err.message);
     });
 
   // 2. CONEXÃO CONTÍNUA EM TEMPO REAL VIA SDK
@@ -448,11 +451,17 @@ function saveData() {
   debtors = debtors.filter(d => d && typeof d === 'object' && d.name);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(debtors));
 
+  // Proteção: não grava lista vazia se a carga do Firebase ainda não foi concluída
+  if (!isFirebaseInitialLoadComplete && debtors.length === 0) {
+    console.warn('⚠️ Carga inicial do Firebase em andamento. Gravação bloqueada para proteger o banco.');
+    return;
+  }
+
   // Salva no Firebase Realtime Database
   if (window.firebaseDb && typeof window.firebaseDb.ref === 'function') {
     try {
       window.firebaseDb.ref('debtors').set(debtors).then(() => {
-        console.log('☁️ Registros salvos no Realtime Database com sucesso!');
+        console.log('☁️ Registros salvos no Realtime Database com sucesso! Total:', debtors.length);
       }).catch(err => {
         console.warn('Aviso Realtime Database:', err.message);
       });
@@ -466,6 +475,7 @@ function syncWithRealtimeDatabase() {
   if (window.firebaseDb && typeof window.firebaseDb.ref === 'function') {
     try {
       window.firebaseDb.ref('debtors').on('value', (snapshot) => {
+        isFirebaseInitialLoadComplete = true;
         const cloudData = snapshot.val();
         if (cloudData) {
           processIncomingFirebaseDebtors(cloudData);
@@ -580,7 +590,9 @@ function loadSampleData() {
     }
   ];
 
-  saveData();
+  // ATENÇÃO: NUNCA grava automaticamente no Firebase para proteger dados reais!
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(debtors));
+  render();
 }
 
 // ==============================================================================
@@ -1524,11 +1536,11 @@ function setupEventListeners() {
     }
   });
 
-  document.getElementById('btnResetSampleData').addEventListener('click', () => {
-    if (confirm('Recarregar lista demonstrativa do JurosApp (Lulu, Ana Souza, Bruno Lima...)?')) {
-      loadSampleData();
-      render();
-      showToast('Dados demonstrativos restaurados!', 'success');
-    }
-  });
+  const btnSyncNow = document.getElementById('btnSyncFirebaseNow');
+  if (btnSyncNow) {
+    btnSyncNow.addEventListener('click', () => {
+      showToast('Atualizando dados do Firebase Realtime Database...', 'info');
+      loadData();
+    });
+  }
 }
