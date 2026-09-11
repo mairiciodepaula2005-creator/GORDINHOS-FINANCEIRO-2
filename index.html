@@ -2674,6 +2674,29 @@ Agradecemos a sua pontualidade e parceria!`;
   const remainingBalance = formatCurrency(info.remainingBalance);
   const remainingCount = info.totalCount - info.paidCount;
 
+  // Cálculo do valor mínimo (apenas juros da parcela)
+  const principal = parseFloat(debtor.principal) || 0;
+  const totalAmount = parseFloat(debtor.totalAmount) || 0;
+  const count = parseInt(debtor.installmentsCount, 10) || (debtor.installments ? debtor.installments.length : 1) || 1;
+  const interestRate = parseFloat(debtor.interestRate) || 0;
+
+  let minInterestVal = 0;
+  if (totalAmount > principal && count > 0) {
+    minInterestVal = (totalAmount - principal) / count;
+  } else if (principal > 0 && interestRate > 0) {
+    if (debtor.isDaily) {
+      minInterestVal = (principal * (interestRate / 100)) / count;
+    } else {
+      minInterestVal = principal * (interestRate / 100);
+    }
+  }
+
+  if (minInterestVal <= 0 && info.nextInstallment && info.nextInstallment.amount) {
+    minInterestVal = info.nextInstallment.amount;
+  }
+  
+  const minAmount = formatCurrency(minInterestVal);
+
   let headerStatus = '';
   if (info.status === 'overdue') {
     headerStatus = `🔴 *AVISO DE COBRANÇA - PARCELA EM ATRASO*\n⚠️ *Atrasada há:* ${info.daysOverdue} ${info.daysOverdue === 1 ? 'dia' : 'dias'}`;
@@ -2692,12 +2715,14 @@ ${headerStatus}
 📋 *DETALHES DA SUA COBRANÇA:*
 ━━━━━━━━━━━━━━━━━━━━━━
 💰 *Valor da Parcela:* ${nextAmount}
+🪙 *Valor Mínimo:* ${minAmount} (apenas juros)
 📅 *Data de Vencimento:* ${nextDueDate}
 📊 *Parcelas:* ${info.paidCount} pagas | *${remainingCount} restantes* (Total: ${info.totalCount})
 💳 *Saldo Devedor Restante:* ${remainingBalance}
 ━━━━━━━━━━━━━━━━━━━━━━
 
 Pedimos a gentileza de efetuar o pagamento e nos enviar o comprovante por aqui.
+_Caso não consiga pagar a parcela integral, é possível pagar o *Valor Mínimo* para cobrir os juros._
 
 _Caso o pagamento já tenha sido realizado, por favor desconsidere este aviso._
 Muito obrigado! 👍`;
