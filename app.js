@@ -977,7 +977,9 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
           thisInstProfit = Math.max(0, Math.round((instAmt - (principal / count)) * 100) / 100);
         }
 
-        const dateStr = inst.paidAt || inst.dueDate || d.createdAt || getTodayString();
+        // A competência e mês de referência da parcela é o seu vencimento (inst.dueDate)
+        // Exemplo: Parcela de Maio -> computada no mês de Maio ao filtrar por mês
+        const dateStr = inst.dueDate || inst.paidAt || d.createdAt || getTodayString();
         const { year: y, month: m } = extractYearMonth(dateStr);
 
         const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
@@ -993,6 +995,8 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
             installmentAmount: inst.amount,
             profit: thisInstProfit,
             date: dateStr,
+            dueDate: inst.dueDate,
+            paidAt: inst.paidAt,
             year: y,
             month: m
           });
@@ -1005,7 +1009,7 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
     renewals.forEach(ren => {
       if (ren && (ren.amount != null || ren.paidAt)) {
         const renAmount = parseFloat(ren.amount) || 0;
-        const dateStr = ren.paidAt || getTodayString();
+        const dateStr = ren.previousDueDate || ren.paidAt || ren.newDueDate || getTodayString();
         const { year: y, month: m } = extractYearMonth(dateStr);
 
         const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
@@ -1021,6 +1025,8 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
             installmentAmount: renAmount,
             profit: renAmount,
             date: dateStr,
+            dueDate: ren.previousDueDate || ren.newDueDate,
+            paidAt: ren.paidAt,
             year: y,
             month: m
           });
@@ -1057,7 +1063,7 @@ function renderDashboardOverview() {
       if (Array.isArray(d.installments)) {
         d.installments.forEach(i => {
           if (i && i.paid) {
-            const dt = i.paidAt || i.dueDate || d.createdAt;
+            const dt = i.dueDate || i.paidAt || d.createdAt;
             if (dt) {
               const { year: y } = extractYearMonth(dt);
               if (!isNaN(y) && y > 2000) allYears.add(y);
@@ -1067,8 +1073,8 @@ function renderDashboardOverview() {
       }
       const renewals = Array.isArray(d.interestPayments) ? d.interestPayments : [];
       renewals.forEach(r => {
-        if (r && r.paidAt) {
-          const { year: y } = extractYearMonth(r.paidAt);
+        if (r && (r.previousDueDate || r.paidAt)) {
+          const { year: y } = extractYearMonth(r.previousDueDate || r.paidAt);
           if (!isNaN(y) && y > 2000) allYears.add(y);
         }
       });
@@ -1186,6 +1192,11 @@ function openProfitStatementModal() {
   const elTitle = document.getElementById('statementPeriodTitle');
   if (elTitle) elTitle.textContent = periodText;
 
+  const modalMonthSelect = document.getElementById('modalProfitFilterMonth');
+  if (modalMonthSelect) {
+    modalMonthSelect.value = selectedProfitMonth;
+  }
+
   const entries = getRealizedProfitEntries(selectedProfitYear, selectedProfitMonth);
   const totalProfit = entries.reduce((acc, curr) => acc + curr.profit, 0);
 
@@ -1203,8 +1214,8 @@ function openProfitStatementModal() {
     container.innerHTML = `
       <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
         <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">📂</div>
-        <p style="font-size: 0.95rem; font-weight: 700; color: #ffffff;">Nenhum lucro realizado neste período.</p>
-        <p style="font-size: 0.76rem; margin-top: 4px; color: var(--text-secondary);">O lucro é exibido apenas quando uma parcela for baixada ou você receber só juros.</p>
+        <p style="font-size: 0.95rem; font-weight: 700; color: #ffffff;">Nenhum lucro realizado para ${periodText}.</p>
+        <p style="font-size: 0.76rem; margin-top: 4px; color: var(--text-secondary);">O lucro é exibido para o mês/ano de cada parcela baixada ou renovação de só juros.</p>
       </div>
     `;
   } else {
@@ -1224,7 +1235,8 @@ function openProfitStatementModal() {
       const badgeColor = isRenewal ? '#60a5fa' : 'var(--green-primary)';
       const badgeBorder = isRenewal ? 'rgba(59, 130, 246, 0.3)' : 'rgba(34, 197, 94, 0.3)';
 
-      const formattedDate = entry.date ? formatDateBR(entry.date) : '--';
+      const refDateFormatted = entry.dueDate ? formatDateBR(entry.dueDate) : formatDateBR(entry.date);
+      const paidAtText = entry.paidAt ? ` • Baixa em: ${formatDateBR(entry.paidAt)}` : '';
 
       item.innerHTML = `
         <div style="flex: 1; min-width: 0;">
@@ -1235,7 +1247,7 @@ function openProfitStatementModal() {
             </span>
           </div>
           <div style="font-size: 0.73rem; color: var(--text-muted); margin-top: 3px;">
-            Recebido em: ${formattedDate}
+            Parcela ref.: ${refDateFormatted}${paidAtText}
           </div>
         </div>
         <div style="text-align: right; flex-shrink: 0;">
@@ -2433,6 +2445,17 @@ function setupEventListeners() {
     profitMonthSelect.addEventListener('change', (e) => {
       selectedProfitMonth = e.target.value;
       renderDashboardOverview();
+    });
+  }
+
+  const modalProfitMonthSelect = document.getElementById('modalProfitFilterMonth');
+  if (modalProfitMonthSelect) {
+    modalProfitMonthSelect.addEventListener('change', (e) => {
+      selectedProfitMonth = e.target.value;
+      const mainMonthSelect = document.getElementById('profitFilterMonth');
+      if (mainMonthSelect) mainMonthSelect.value = selectedProfitMonth;
+      renderDashboardOverview();
+      openProfitStatementModal();
     });
   }
 
