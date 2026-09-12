@@ -1168,17 +1168,57 @@ body {
       </div>
 
       <div class="kpi-cards-grid">
-        <!-- CARD DESTAQUE: APENAS LUCRO (JUROS) -->
+        <!-- CARD DESTAQUE: APENAS LUCRO REALIZADO (FILTRÁVEL POR ANO E MÊS) -->
         <div class="kpi-stat-card kpi-highlight-card">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; flex-wrap: wrap;">
             <div>
-              <span class="kpi-stat-label" style="color: #34d399; font-size: 0.76rem; letter-spacing: 0.5px;">💰 Apenas Lucro (Juros)</span>
-              <span class="kpi-stat-value" id="dashTotalProfitOnly" style="color: #34d399; font-size: 1.55rem; font-weight: 900;">R$ 0,00</span>
-              <span class="kpi-stat-sub" id="dashProfitOnlySub" style="color: rgba(255, 255, 255, 0.7);">Lucro líquido dos juros (sem capital emprestado)</span>
+              <span class="kpi-stat-label" style="color: #34d399; font-size: 0.76rem; letter-spacing: 0.5px;">💰 Apenas Lucro Realizado (Baixas & Juros)</span>
+              <span class="kpi-stat-value" id="dashTotalProfitOnly" style="color: #34d399; font-size: 1.65rem; font-weight: 900;">R$ 0,00</span>
+              <span class="kpi-stat-sub" id="dashProfitOnlySub" style="color: rgba(255, 255, 255, 0.75);">Apenas de parcelas baixadas e juros recebidos</span>
             </div>
-            <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 0.35rem 0.65rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700;">
-              LUCRO REAL
-            </span>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem;">
+              <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 0.35rem 0.65rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700;">
+                LUCRO REAL
+              </span>
+              <button type="button" id="btnOpenProfitStatement" style="background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.35); color: #34d399; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                Ver Extrato
+              </button>
+            </div>
+          </div>
+
+          <!-- BARRA DE FILTRO POR ANO E MÊS -->
+          <div style="margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid rgba(52, 211, 153, 0.2); display: flex; align-items: center; gap: 0.5rem;">
+            <div style="flex: 1;">
+              <label for="profitFilterYear" style="display: block; font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Ano:</label>
+              <select id="profitFilterYear" class="form-control" style="padding: 0.35rem 0.5rem; font-size: 0.78rem; height: auto; background: var(--bg-surface); border-color: rgba(52, 211, 153, 0.3); color: #ffffff;">
+                <option value="all">Todos os Anos</option>
+              </select>
+            </div>
+            <div style="flex: 1.3;">
+              <label for="profitFilterMonth" style="display: block; font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Mês:</label>
+              <select id="profitFilterMonth" class="form-control" style="padding: 0.35rem 0.5rem; font-size: 0.78rem; height: auto; background: var(--bg-surface); border-color: rgba(52, 211, 153, 0.3); color: #ffffff;">
+                <option value="all">Todos os Meses</option>
+                <option value="1">01 - Janeiro</option>
+                <option value="2">02 - Fevereiro</option>
+                <option value="3">03 - Março</option>
+                <option value="4">04 - Abril</option>
+                <option value="5">05 - Maio</option>
+                <option value="6">06 - Junho</option>
+                <option value="7">07 - Julho</option>
+                <option value="8">08 - Agosto</option>
+                <option value="9">09 - Setembro</option>
+                <option value="10">10 - Outubro</option>
+                <option value="11">11 - Novembro</option>
+                <option value="12">12 - Dezembro</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- DETALHAMENTO DE ORIGEM DO LUCRO (BAIXAS VS SÓ JUROS) -->
+          <div id="dashProfitBreakdown" style="margin-top: 0.6rem; font-size: 0.72rem; color: var(--text-secondary); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.3rem;">
+            <span id="dashProfitBreakdownInstallments">Baixas: R$ 0,00</span>
+            <span id="dashProfitBreakdownRenewals">Só Juros: R$ 0,00</span>
           </div>
         </div>
 
@@ -1596,6 +1636,45 @@ body {
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL DE EXTRATO DE LUCRO REALIZADO
+       ==================================================================== -->
+  <div class="modal-overlay" id="modalProfitStatement">
+    <div class="modal-sheet-content">
+      <div class="modal-sheet-header">
+        <h3 class="modal-sheet-title">💰 Extrato de Lucro Realizado</h3>
+        <button type="button" class="modal-sheet-close" data-close="modalProfitStatement">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="modal-sheet-body">
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 0.85rem; margin-bottom: 1rem;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Período Filtrado:</div>
+          <div id="statementPeriodTitle" style="font-size: 0.95rem; font-weight: 800; color: #34d399; margin-top: 2px;">Todos os Meses / Todos os Anos</div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.5rem; border-top: 1px dashed rgba(52, 211, 153, 0.25); padding-top: 0.5rem;">
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Total de Lucro Recebido:</span>
+            <span id="statementTotalProfit" style="font-size: 1.25rem; font-weight: 900; color: #34d399;">R$ 0,00</span>
+          </div>
+        </div>
+
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase;">
+          Lançamentos Baixados no Período (<span id="statementEntriesCount">0</span>):
+        </div>
+
+        <div id="profitStatementList" style="display: flex; flex-direction: column; gap: 0.6rem;">
+          <!-- Itens injetados via JavaScript -->
+        </div>
+      </div>
+
+      <div class="modal-sheet-footer">
+        <button type="button" class="sheet-action-btn" data-close="modalProfitStatement" style="flex: 1; justify-content: center;">
+          Fechar Extrato
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2538,6 +2617,101 @@ function renderMetricsBar() {
   document.getElementById('metricOverdueClients').textContent = overdueClients;
 }
 
+let selectedProfitYear = 'all';
+let selectedProfitMonth = 'all';
+
+function getRealizedProfitEntries(filterYear, filterMonth) {
+  const entries = [];
+  const validDebtors = debtors.filter(d => d && typeof d === 'object' && d.name);
+
+  validDebtors.forEach(d => {
+    const principal = parseFloat(d.principal) || 0;
+    const totalAmount = parseFloat(d.totalAmount) || 0;
+    const count = parseInt(d.installmentsCount, 10) || (d.installments ? d.installments.length : 1) || 1;
+    const interestRate = parseFloat(d.interestRate) || 0;
+
+    // Cálculo do lucro proporcional por parcela
+    let profitPerInstallment = 0;
+    if (totalAmount > principal && count > 0) {
+      profitPerInstallment = (totalAmount - principal) / count;
+    } else if (principal > 0 && interestRate > 0) {
+      profitPerInstallment = d.isDaily ? (principal * (interestRate / 100)) / count : (principal * (interestRate / 100));
+    }
+    profitPerInstallment = Math.round(profitPerInstallment * 100) / 100;
+
+    // 1. Parcelas que receberam baixa (inst.paid === true)
+    if (Array.isArray(d.installments)) {
+      d.installments.forEach(inst => {
+        if (inst && inst.paid) {
+          const dateStr = inst.paidAt || inst.dueDate || d.createdAt || getTodayString();
+          const cleanDate = String(dateStr).split('T')[0];
+          const parts = cleanDate.split('-').map(Number);
+          const y = parts[0] || new Date().getFullYear();
+          const m = parts[1] || (new Date().getMonth() + 1);
+
+          const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
+          const matchesMonth = filterMonth === 'all' || String(m) === String(filterMonth);
+
+          if (matchesYear && matchesMonth) {
+            entries.push({
+              debtorId: d.id,
+              debtorName: d.name,
+              type: 'installment',
+              typeLabel: `Baixa Parcela #${inst.number}`,
+              installmentNumber: inst.number,
+              installmentAmount: inst.amount,
+              profit: profitPerInstallment,
+              date: dateStr,
+              year: y,
+              month: m
+            });
+          }
+        }
+      });
+    }
+
+    // 2. Renovações de Só Juros (d.interestPayments)
+    let renewals = [];
+    if (Array.isArray(d.interestPayments)) {
+      renewals = d.interestPayments;
+    } else if (d.interestPayments && typeof d.interestPayments === 'object') {
+      renewals = Object.values(d.interestPayments);
+    }
+
+    renewals.forEach(ren => {
+      if (ren && (ren.amount != null || ren.paidAt)) {
+        const renAmount = parseFloat(ren.amount) || 0;
+        const dateStr = ren.paidAt || getTodayString();
+        const cleanDate = String(dateStr).split('T')[0];
+        const parts = cleanDate.split('-').map(Number);
+        const y = parts[0] || new Date().getFullYear();
+        const m = parts[1] || (new Date().getMonth() + 1);
+
+        const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
+        const matchesMonth = filterMonth === 'all' || String(m) === String(filterMonth);
+
+        if (matchesYear && matchesMonth) {
+          entries.push({
+            debtorId: d.id,
+            debtorName: d.name,
+            type: 'interest_only',
+            typeLabel: `Só Juros (Renovação #${ren.installmentNumber || '1'})`,
+            installmentNumber: ren.installmentNumber,
+            installmentAmount: renAmount,
+            profit: renAmount,
+            date: dateStr,
+            year: y,
+            month: m
+          });
+        }
+      }
+    });
+  });
+
+  entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return entries;
+}
+
 function renderDashboardOverview() {
   const validDebtors = debtors.filter(d => d && typeof d === 'object' && d.name);
   let totalPrincipal = 0;
@@ -2546,34 +2720,62 @@ function renderDashboardOverview() {
   let totalUpcoming = 0;
   let countOverdue = 0;
   let countUpcoming = 0;
-  let totalProfitOnly = 0;
 
+  // Popula o select de Anos dinamicamente
+  const yearSelect = document.getElementById('profitFilterYear');
+  if (yearSelect) {
+    const allYears = new Set();
+    const currentYear = new Date().getFullYear();
+    allYears.add(currentYear);
+
+    validDebtors.forEach(d => {
+      if (Array.isArray(d.installments)) {
+        d.installments.forEach(i => {
+          if (i && i.paid) {
+            const dt = i.paidAt || i.dueDate || d.createdAt;
+            if (dt) {
+              const y = parseInt(String(dt).split('T')[0].split('-')[0], 10);
+              if (!isNaN(y) && y > 2000) allYears.add(y);
+            }
+          }
+        });
+      }
+      let renewals = [];
+      if (Array.isArray(d.interestPayments)) renewals = d.interestPayments;
+      else if (d.interestPayments && typeof d.interestPayments === 'object') renewals = Object.values(d.interestPayments);
+      renewals.forEach(r => {
+        if (r && r.paidAt) {
+          const y = parseInt(String(r.paidAt).split('T')[0].split('-')[0], 10);
+          if (!isNaN(y) && y > 2000) allYears.add(y);
+        }
+      });
+      if (d.createdAt) {
+        const y = parseInt(String(d.createdAt).split('T')[0].split('-')[0], 10);
+        if (!isNaN(y) && y > 2000) allYears.add(y);
+      }
+    });
+
+    const sortedYears = Array.from(allYears).sort((a, b) => b - a);
+    let optionsHtml = `<option value="all" ${selectedProfitYear === 'all' ? 'selected' : ''}>Todos os Anos</option>`;
+    sortedYears.forEach(y => {
+      optionsHtml += `<option value="${y}" ${String(y) === String(selectedProfitYear) ? 'selected' : ''}>${y}</option>`;
+    });
+
+    if (yearSelect.innerHTML !== optionsHtml) {
+      yearSelect.innerHTML = optionsHtml;
+    }
+  }
+
+  const monthSelect = document.getElementById('profitFilterMonth');
+  if (monthSelect && monthSelect.value !== selectedProfitMonth) {
+    monthSelect.value = selectedProfitMonth;
+  }
+
+  // Cálculos de Total Emprestado e Saldo a Receber do Painel Geral
   validDebtors.forEach(d => {
     const info = evaluateDebtorStatus(d);
-    const principal = parseFloat(d.principal) || 0;
-    const totalAmount = parseFloat(d.totalAmount) || 0;
-    const interestRate = parseFloat(d.interestRate) || 0;
-
-    totalPrincipal += principal;
+    totalPrincipal += d.principal || 0;
     totalReceivable += info.remainingBalance;
-
-    // Lucro puro dos juros contratados (sem o capital principal)
-    let contractProfit = 0;
-    if (totalAmount > principal) {
-      contractProfit = totalAmount - principal;
-    } else if (principal > 0 && interestRate > 0) {
-      contractProfit = principal * (interestRate / 100);
-    }
-
-    // Juros recebidos de renovações ("só juros")
-    let renewalsProfit = 0;
-    if (Array.isArray(d.interestPayments)) {
-      renewalsProfit = d.interestPayments.reduce((acc, p) => acc + (parseFloat(p && p.amount) || 0), 0);
-    } else if (d.interestPayments && typeof d.interestPayments === 'object') {
-      renewalsProfit = Object.values(d.interestPayments).reduce((acc, p) => acc + (parseFloat(p && p.amount) || 0), 0);
-    }
-
-    totalProfitOnly += (contractProfit + renewalsProfit);
 
     if (info.status === 'overdue') {
       totalOverdue += info.remainingBalance;
@@ -2584,14 +2786,53 @@ function renderDashboardOverview() {
     }
   });
 
+  // Cálculo do Lucro Realizado (apenas parcelas baixadas e só juros, filtrado por ano e mês)
+  const profitEntries = getRealizedProfitEntries(selectedProfitYear, selectedProfitMonth);
+  let totalRealizedProfit = 0;
+  let totalInstallmentProfit = 0;
+  let totalRenewalsProfit = 0;
+  let countInstallmentBaixas = 0;
+  let countRenewals = 0;
+
+  profitEntries.forEach(entry => {
+    totalRealizedProfit += entry.profit;
+    if (entry.type === 'installment') {
+      totalInstallmentProfit += entry.profit;
+      countInstallmentBaixas++;
+    } else {
+      totalRenewalsProfit += entry.profit;
+      countRenewals++;
+    }
+  });
+
   const elProfitOnly = document.getElementById('dashTotalProfitOnly');
   if (elProfitOnly) {
-    elProfitOnly.textContent = formatCurrency(totalProfitOnly);
+    elProfitOnly.textContent = formatCurrency(totalRealizedProfit);
   }
 
   const elProfitSub = document.getElementById('dashProfitOnlySub');
   if (elProfitSub) {
-    elProfitSub.textContent = `Lucro líquido dos juros (sem capital emprestado)`;
+    const monthNames = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    let periodText = 'Apenas parcelas baixadas e juros recebidos';
+    if (selectedProfitYear !== 'all' && selectedProfitMonth !== 'all') {
+      periodText = `Lucro em ${monthNames[parseInt(selectedProfitMonth, 10)]} de ${selectedProfitYear}`;
+    } else if (selectedProfitYear !== 'all') {
+      periodText = `Lucro realizado no ano de ${selectedProfitYear}`;
+    } else if (selectedProfitMonth !== 'all') {
+      periodText = `Lucro em ${monthNames[parseInt(selectedProfitMonth, 10)]} (Todos os anos)`;
+    } else {
+      periodText = `Lucro realizado histórico (Todo o período)`;
+    }
+    elProfitSub.textContent = periodText;
+  }
+
+  const elBreakdownInst = document.getElementById('dashProfitBreakdownInstallments');
+  if (elBreakdownInst) {
+    elBreakdownInst.textContent = `Baixas: ${formatCurrency(totalInstallmentProfit)} (${countInstallmentBaixas}x)`;
+  }
+  const elBreakdownRen = document.getElementById('dashProfitBreakdownRenewals');
+  if (elBreakdownRen) {
+    elBreakdownRen.textContent = `Só Juros: ${formatCurrency(totalRenewalsProfit)} (${countRenewals}x)`;
   }
 
   document.getElementById('dashTotalPrincipal').textContent = formatCurrency(totalPrincipal);
@@ -2605,6 +2846,88 @@ function renderDashboardOverview() {
 
   document.getElementById('dashTotalUpcoming').textContent = formatCurrency(totalUpcoming);
   document.getElementById('dashCountUpcoming').textContent = `${countUpcoming} cobrança(s) hoje`;
+}
+
+function openProfitStatementModal() {
+  const monthNames = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  let periodText = 'Todo o Período Histórico';
+  if (selectedProfitYear !== 'all' && selectedProfitMonth !== 'all') {
+    periodText = `${monthNames[parseInt(selectedProfitMonth, 10)]} de ${selectedProfitYear}`;
+  } else if (selectedProfitYear !== 'all') {
+    periodText = `Ano de ${selectedProfitYear}`;
+  } else if (selectedProfitMonth !== 'all') {
+    periodText = `Mês de ${monthNames[parseInt(selectedProfitMonth, 10)]} (Todos os anos)`;
+  }
+
+  const elTitle = document.getElementById('statementPeriodTitle');
+  if (elTitle) elTitle.textContent = periodText;
+
+  const entries = getRealizedProfitEntries(selectedProfitYear, selectedProfitMonth);
+  const totalProfit = entries.reduce((acc, curr) => acc + curr.profit, 0);
+
+  const elTotal = document.getElementById('statementTotalProfit');
+  if (elTotal) elTotal.textContent = formatCurrency(totalProfit);
+
+  const elCount = document.getElementById('statementEntriesCount');
+  if (elCount) elCount.textContent = entries.length;
+
+  const container = document.getElementById('profitStatementList');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (entries.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+        <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">📂</div>
+        <p style="font-size: 0.95rem; font-weight: 700; color: #ffffff;">Nenhum lucro realizado neste período.</p>
+        <p style="font-size: 0.76rem; margin-top: 4px; color: var(--text-secondary);">O lucro é exibido apenas quando uma parcela for baixada ou você receber só juros.</p>
+      </div>
+    `;
+  } else {
+    entries.forEach(entry => {
+      const item = document.createElement('div');
+      item.style.background = 'var(--bg-input)';
+      item.style.border = '1px solid var(--border-subtle)';
+      item.style.borderRadius = '8px';
+      item.style.padding = '0.75rem 0.85rem';
+      item.style.display = 'flex';
+      item.style.justifyContent = 'space-between';
+      item.style.alignItems = 'center';
+      item.style.gap = '0.5rem';
+
+      const isRenewal = entry.type === 'interest_only';
+      const badgeBg = isRenewal ? 'rgba(59, 130, 246, 0.15)' : 'rgba(34, 197, 94, 0.15)';
+      const badgeColor = isRenewal ? '#60a5fa' : 'var(--green-primary)';
+      const badgeBorder = isRenewal ? 'rgba(59, 130, 246, 0.3)' : 'rgba(34, 197, 94, 0.3)';
+
+      const formattedDate = entry.date ? formatDateBR(entry.date) : '--';
+
+      item.innerHTML = `
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+            <span style="font-weight: 700; color: #ffffff; font-size: 0.88rem;">${escapeHTML(entry.debtorName)}</span>
+            <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; border-radius: 4px; padding: 1px 6px; font-size: 0.68rem; font-weight: 700;">
+              ${entry.typeLabel}
+            </span>
+          </div>
+          <div style="font-size: 0.73rem; color: var(--text-muted); margin-top: 3px;">
+            Recebido em: ${formattedDate}
+          </div>
+        </div>
+        <div style="text-align: right; flex-shrink: 0;">
+          <div style="font-size: 0.95rem; font-weight: 800; color: #34d399;">
+            + ${formatCurrency(entry.profit)}
+          </div>
+          <div style="font-size: 0.68rem; color: var(--text-muted);">
+            LUCRO
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  openModal('modalProfitStatement');
 }
 
 function renderClientsList() {
@@ -3335,6 +3658,28 @@ function setupEventListeners() {
       toggleInstallmentPayment(num);
     }
   });
+
+  // Filtros de Ano e Mês do Lucro Realizado
+  const profitYearSelect = document.getElementById('profitFilterYear');
+  if (profitYearSelect) {
+    profitYearSelect.addEventListener('change', (e) => {
+      selectedProfitYear = e.target.value;
+      renderDashboardOverview();
+    });
+  }
+
+  const profitMonthSelect = document.getElementById('profitFilterMonth');
+  if (profitMonthSelect) {
+    profitMonthSelect.addEventListener('change', (e) => {
+      selectedProfitMonth = e.target.value;
+      renderDashboardOverview();
+    });
+  }
+
+  const btnOpenStatement = document.getElementById('btnOpenProfitStatement');
+  if (btnOpenStatement) {
+    btnOpenStatement.addEventListener('click', openProfitStatementModal);
+  }
 
   document.getElementById('btnExportData').addEventListener('click', () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(debtors, null, 2));
