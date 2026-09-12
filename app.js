@@ -2106,20 +2106,31 @@ function getAnnualReportPdfTemplateHtml(year) {
 async function downloadAnnualProfitReportPDF(year) {
   const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
   const btnPdf = document.getElementById('btnDownloadAnnualReportPdf');
+  const btnFooterPdf = document.getElementById('btnModalFooterDownloadPdf');
   const originalBtnContent = btnPdf ? btnPdf.innerHTML : '';
+  const originalFooterContent = btnFooterPdf ? btnFooterPdf.innerHTML : '';
 
-  if (btnPdf) {
-    btnPdf.disabled = true;
-    btnPdf.style.opacity = '0.7';
-    btnPdf.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
-        <circle cx="12" cy="12" r="10" stroke-opacity="0.25" stroke="currentColor" fill="none"></circle>
-        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path>
-      </svg>
-      <span>Gerando PDF...</span>
-    `;
-  }
+  const setButtonsLoading = (isLoading) => {
+    [btnPdf, btnFooterPdf].forEach(b => {
+      if (!b) return;
+      b.disabled = isLoading;
+      b.style.opacity = isLoading ? '0.7' : '1';
+      if (isLoading) {
+        b.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+            <circle cx="12" cy="12" r="10" stroke-opacity="0.25" stroke="currentColor" fill="none"></circle>
+            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path>
+          </svg>
+          <span>Gerando PDF...</span>
+        `;
+      } else {
+        if (b === btnPdf) b.innerHTML = originalBtnContent;
+        if (b === btnFooterPdf) b.innerHTML = originalFooterContent;
+      }
+    });
+  };
 
+  setButtonsLoading(true);
   showToast(`Gerando arquivo PDF do relatório de ${selectedYear}...`, 'info');
 
   try {
@@ -2128,7 +2139,7 @@ async function downloadAnnualProfitReportPDF(year) {
         const s = document.createElement('script');
         s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
         s.onload = resolve;
-        s.onerror = () => reject(new Error('Não foi possível carregar html2pdf.'));
+        s.onerror = () => reject(new Error('Biblioteca html2pdf indisponível.'));
         document.head.appendChild(s);
       });
     }
@@ -2141,7 +2152,7 @@ async function downloadAnnualProfitReportPDF(year) {
     container.style.width = '794px';
     container.style.background = '#ffffff';
     container.style.color = '#0f172a';
-    container.style.zIndex = '-99999';
+    container.style.zIndex = '999999';
     container.style.boxSizing = 'border-box';
     container.style.padding = '24px';
     container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -2150,35 +2161,76 @@ async function downloadAnnualProfitReportPDF(year) {
     document.body.appendChild(container);
 
     const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `Relatorio_Lucro_Anual_${selectedYear}_${dateStr}.pdf`;
     const opt = {
       margin: [8, 8, 8, 8],
-      filename: `Relatorio_Lucro_Anual_${selectedYear}_${dateStr}.pdf`,
+      filename: filename,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
         letterRendering: true,
         scrollY: 0,
         windowWidth: 794
       },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    await html2pdf().set(opt).from(container).save();
+    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
     container.remove();
 
-    showToast(`PDF do ano ${selectedYear} baixado com sucesso!`, 'success');
+    const fileUrl = URL.createObjectURL(pdfBlob);
+
+    // 1. Tenta download programático
+    try {
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 1000);
+    } catch(e) {
+      console.warn('Download direto bloqueado pelo navegador:', e);
+    }
+
+    // 2. Cria aviso visual com botões diretos caso bloqueador de downloads atue
+    const bannerId = 'pdfDownloadSuccessBanner';
+    const oldBanner = document.getElementById(bannerId);
+    if (oldBanner) oldBanner.remove();
+
+    const banner = document.createElement('div');
+    banner.id = bannerId;
+    banner.style.cssText = 'background: linear-gradient(135deg, #059669, #047857); color: #ffffff; padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #10b981; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: 0 4px 12px rgba(0,0,0,0.25);';
+    banner.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 22px;">✅</span>
+        <div>
+          <div style="font-weight: 800; font-size: 13px; color: #ffffff;">Relatório PDF Gerado com Sucesso!</div>
+          <div style="font-size: 11px; opacity: 0.95; color: #e2e8f0;">Se o seu navegador não salvou automaticamente, use as opções:</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="${fileUrl}" download="${filename}" class="btn" style="background: #ffffff; color: #065f46; font-weight: 800; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+          📥 Baixar Arquivo PDF
+        </a>
+        <a href="${fileUrl}" target="_blank" class="btn" style="background: rgba(255,255,255,0.2); color: #ffffff; font-weight: 700; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,0.3);">
+          👁️ Abrir / Visualizar
+        </a>
+      </div>
+    `;
+
+    const reportArea = document.getElementById('printableReportArea');
+    if (reportArea && reportArea.parentNode) {
+      reportArea.parentNode.insertBefore(banner, reportArea);
+    }
+
+    showToast(`PDF do ano ${selectedYear} gerado com sucesso!`, 'success');
   } catch (err) {
     console.error('Erro na exportação de PDF:', err);
-    showToast('Falha na geração automática. Abrindo diálogo de impressão/salvar...', 'warning');
+    showToast('Abrindo visualização de impressão/salvar em PDF...', 'warning');
     window.print();
   } finally {
-    if (btnPdf) {
-      btnPdf.disabled = false;
-      btnPdf.style.opacity = '1';
-      btnPdf.innerHTML = originalBtnContent;
-    }
+    setButtonsLoading(false);
   }
 }
 
