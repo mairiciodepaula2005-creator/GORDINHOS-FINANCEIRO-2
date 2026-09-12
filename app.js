@@ -3479,6 +3479,13 @@ function setupEventListeners() {
     });
   }
 
+  const btnModalFooterPdf = document.getElementById('btnModalFooterDownloadPdf');
+  if (btnModalFooterPdf) {
+    btnModalFooterPdf.addEventListener('click', () => {
+      downloadAnnualProfitReportPDF(selectedAnnualReportYear);
+    });
+  }
+
   const btnDownloadAnnualReportCsv = document.getElementById('btnDownloadAnnualReportCsv');
   if (btnDownloadAnnualReportCsv) {
     btnDownloadAnnualReportCsv.addEventListener('click', () => {
