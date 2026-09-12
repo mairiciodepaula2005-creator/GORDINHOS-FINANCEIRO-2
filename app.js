@@ -1849,6 +1849,9 @@ function handleNewClientSubmit(e) {
   saveData();
   render();
 
+  // Envia cópia de segurança em segundo plano para o Google Sheets (não-bloqueante)
+  sendGoogleSheetsClientBackup(newDebtor);
+
   closeModal('modalNewClient');
   document.getElementById('formNewClient').reset();
   document.getElementById('debtorInterest').value = '30';
@@ -1946,14 +1949,19 @@ function switchTab(tabId) {
 // ====================================================================
 const GOOGLE_SHEETS_URL_KEY = 'gordinhos_sheets_webhook_url';
 const GOOGLE_SHEETS_AUTOSYNC_KEY = 'gordinhos_sheets_autosync';
+const DEFAULT_GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyIkTX-SQUi184zn1FimBmlyGWct9ARDpzcpVsXwQLOZh_xiFZGGWoN4mINaCzORrpRtA/exec';
 
 function initGoogleSheetsSettings() {
   const inputUrl = document.getElementById('googleSheetWebhookUrl');
   const chkAuto = document.getElementById('chkAutoSyncGoogleSheets');
   const badge = document.getElementById('googleSheetsSyncStatusBadge');
   
-  const savedUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY) || '';
-  const savedAuto = localStorage.getItem(GOOGLE_SHEETS_AUTOSYNC_KEY) === 'true';
+  let savedUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY);
+  if (!savedUrl || !savedUrl.trim()) {
+    savedUrl = DEFAULT_GOOGLE_SHEETS_URL;
+    localStorage.setItem(GOOGLE_SHEETS_URL_KEY, savedUrl);
+  }
+  const savedAuto = localStorage.getItem(GOOGLE_SHEETS_AUTOSYNC_KEY) !== 'false';
 
   if (inputUrl) inputUrl.value = savedUrl;
   if (chkAuto) chkAuto.checked = savedAuto;
@@ -2089,7 +2097,7 @@ function getGoogleSheetsExportPayload() {
 }
 
 async function syncWithGoogleSheets(isSilent = false) {
-  const webhookUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY);
+  const webhookUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY) || DEFAULT_GOOGLE_SHEETS_URL;
   if (!webhookUrl || !webhookUrl.startsWith('http')) {
     if (!isSilent) {
       showToast('Configure a URL do Webhook do Google Apps Script antes de sincronizar!', 'warning');
@@ -2143,10 +2151,65 @@ async function syncWithGoogleSheets(isSilent = false) {
 }
 
 function triggerGoogleSheetsAutoSync() {
-  const isAuto = localStorage.getItem(GOOGLE_SHEETS_AUTOSYNC_KEY) === 'true';
-  const webhookUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY);
+  const isAuto = localStorage.getItem(GOOGLE_SHEETS_AUTOSYNC_KEY) !== 'false';
+  const webhookUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY) || DEFAULT_GOOGLE_SHEETS_URL;
   if (isAuto && webhookUrl && webhookUrl.startsWith('http')) {
     syncWithGoogleSheets(true);
+  }
+}
+
+/**
+ * Envia uma cópia de segurança do cadastro recém-criado diretamente para o Google Apps Script.
+ * Disparo 100% assíncrono ("fire-and-forget"), com mode: 'no-cors'.
+ * Garante que o Firebase continue sendo o banco de dados principal e que a interface
+ * nunca congele ou seja impactada por oscilações de rede.
+ */
+function sendGoogleSheetsClientBackup(debtor) {
+  try {
+    const webhookUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY) || DEFAULT_GOOGLE_SHEETS_URL;
+    if (!webhookUrl || !webhookUrl.startsWith('http')) {
+      return;
+    }
+
+    const principal = parseFloat(debtor.principal) || 0;
+    const totalAmount = parseFloat(debtor.totalAmount) || 0;
+    const expectedProfit = Math.max(0, Math.round((totalAmount - principal) * 100) / 100);
+    const firstDueDate = (Array.isArray(debtor.installments) && debtor.installments[0])
+      ? debtor.installments[0].dueDate
+      : (debtor.startDate || '');
+
+    const payload = {
+      timestamp: new Date().toLocaleString('pt-BR'),
+      id: debtor.id || '',
+      name: debtor.name || '',
+      phone: debtor.phone || '',
+      principal: principal,
+      interestRate: parseFloat(debtor.interestRate) || 0,
+      type: debtor.isDaily ? 'Diária' : 'Mensal',
+      installmentsCount: parseInt(debtor.installmentsCount, 10) || 1,
+      installmentAmount: parseFloat(debtor.installmentAmount) || 0,
+      totalAmount: totalAmount,
+      expectedProfit: expectedProfit,
+      startDate: debtor.startDate || '',
+      firstDueDate: firstDueDate,
+      status: 'Ativo',
+      notes: debtor.notes || ''
+    };
+
+    fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload),
+      mode: 'no-cors'
+    }).then(() => {
+      console.log('📊 Backup do cadastro enviado com sucesso para o Google Sheets!');
+    }).catch(err => {
+      console.warn('Aviso silencioso (backup Google Sheets):', err.message);
+    });
+  } catch (err) {
+    console.warn('Erro ao disparar envio para Google Sheets:', err);
   }
 }
 

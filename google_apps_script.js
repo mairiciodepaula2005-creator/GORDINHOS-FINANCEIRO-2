@@ -1,28 +1,51 @@
-/**
+﻿/**
  * ==============================================================================
- * SISTEMA FINANCEIRO - SINCRONIZAÇÃO COM PLANILHA NO GOOGLE DRIVE
+ * GORDINHOS FINANCEIRO - BACKUP AUTOMÁTICO EM PLANILHA DO GOOGLE DRIVE
+ * ARQUIVO: Code.gs (Google Apps Script)
  * ==============================================================================
  * 
- * COMO USAR (Menos de 1 minuto):
- * 1. Abra o seu Google Drive e crie uma nova planilha (ex: "Controle Financeiro").
- * 2. No menu superior da planilha, clique em: Extensões > Apps Script.
- * 3. Apague qualquer código existente no editor e cole todo este arquivo.
- * 4. No canto superior direito, clique no botão azul "Implantar" > "Nova implantação".
- * 5. Clique no ícone de engrenagem ao lado de "Selecionar tipo" e escolha "App da Web".
- * 6. Preencha as opções:
- *    - Descrição: Sincronizador Financeiro
- *    - Executar como: Eu (seu email)
- *    - Quem pode acessar: Qualquer pessoa (Anyone)
- * 7. Clique em "Implantar", conceda as permissões solicitadas pela sua conta Google.
- * 8. Copie a "URL do app da web" (termina com /exec) e cole no seu sistema na aba "Mais"!
- * 
- * Pronto! Todas as vezes que você clicar em "Sincronizar" ou registrar baixas, 
- * sua planilha no Google Drive será atualizada automaticamente com abas formatadas.
+ * INSTRUÇÕES RÁPIDAS DE INSTALAÇÃO:
+ * 1. Abra o Google Drive (https://drive.google.com) e crie uma nova Planilha Google.
+ * 2. Dê um nome à planilha (ex: "Backup Gordinhos Financeiro").
+ * 3. No menu superior da planilha, clique em: Extensões > Apps Script.
+ * 4. Apague todo o conteúdo que estiver no editor e cole todo este código abaixo.
+ * 5. No canto superior direito, clique em "Implantar" (Deploy) > "Nova implantação".
+ * 6. Clique na engrenagem ao lado de "Selecionar tipo" e escolha "App da Web" (Web app).
+ * 7. Configure as opções:
+ *    - Descrição: Backup Automático Financeiro
+ *    - Executar como: Eu (seu e-mail)
+ *    - Quem pode acessar: Qualquer pessoa (Anyone)  <--- IMPORTANTE!
+ * 8. Clique em "Implantar" e autorize as permissões da sua conta Google.
+ * 9. Copie a "URL do app da web" gerada (termina com /exec).
+ * 10. No seu sistema (site), vá na aba "Mais", cole a URL no campo de Webhook e salve!
  * ==============================================================================
  */
 
+// Lista exata de cabeçalhos das colunas (Linha 1 da planilha)
+var HEADERS = [
+  "Data/Hora",
+  "ID do Cliente",
+  "Nome do Cliente",
+  "Telefone",
+  "Valor Emprestado (R$)",
+  "Taxa de Juros (%)",
+  "Tipo de Cobrança",
+  "Qtd Parcelas / Dias",
+  "Valor da Parcela (R$)",
+  "Total a Pagar (R$)",
+  "Lucro Estimado (R$)",
+  "Data de Início",
+  "Primeiro Vencimento",
+  "Status",
+  "Observações"
+];
+
+/**
+ * Ponto de entrada POST que recebe os dados enviados pelo Front-end
+ */
 function doPost(e) {
   try {
+    // 1. Validação de dados recebidos
     if (!e || !e.postData || !e.postData.contents) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "error",
@@ -30,138 +53,138 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    var payload = JSON.parse(e.postData.contents);
+    // 2. Parse seguro do JSON
+    var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    // --------------------------------------------------------------------------
-    // 1. ABA: RESUMO GERAL
-    // --------------------------------------------------------------------------
-    var sheetResumo = ss.getSheetByName("Resumo Financeiro") || ss.insertSheet("Resumo Financeiro", 0);
-    sheetResumo.clear();
     
-    var resumoHeader = [["MÉTRICA", "VALOR"]];
-    sheetResumo.getRange(1, 1, 1, 2).setValues(resumoHeader)
-      .setBackground("#065F46").setFontColor("#FFFFFF").setFontWeight("bold").setFontSize(11);
-
-    var resumoData = [
-      ["Total Emprestado (Principal)", payload.summary ? payload.summary.totalPrincipal : 0],
-      ["Total a Receber (Saldo Pendente)", payload.summary ? payload.summary.totalReceivable : 0],
-      ["Total de Lucro Realizado (Baixas + Juros)", payload.summary ? payload.summary.totalRealizedProfit : 0],
-      ["Clientes Ativos", payload.summary ? payload.summary.activeClientsCount : 0],
-      ["Clientes em Atraso", payload.summary ? payload.summary.overdueClientsCount : 0],
-      ["Última Atualização", new Date().toLocaleString("pt-BR")]
-    ];
-
-    sheetResumo.getRange(2, 1, resumoData.length, 2).setValues(resumoData);
-    sheetResumo.getRange(2, 2, 3, 1).setNumberFormat("R$ #,##0.00");
-    sheetResumo.autoResizeColumns(1, 2);
-
-    // --------------------------------------------------------------------------
-    // 2. ABA: CLIENTES E EMPRÉSTIMOS
-    // --------------------------------------------------------------------------
-    var sheetClientes = ss.getSheetByName("Clientes") || ss.insertSheet("Clientes", 1);
-    sheetClientes.clear();
-
-    var headersClientes = [
-      "Nome", "CPF", "Telefone", "Valor Emprestado", "Taxa (%)", "Total a Pagar", 
-      "Saldo Restante", "Lucro Previsto", "Lucro Realizado", "Parcelas Pagas", 
-      "Total Parcelas", "Status", "Data de Início", "Observações"
-    ];
-    sheetClientes.appendRow(headersClientes);
-    sheetClientes.getRange(1, 1, 1, headersClientes.length)
-      .setBackground("#059669").setFontColor("#FFFFFF").setFontWeight("bold");
-
-    if (payload.debtors && payload.debtors.length > 0) {
-      var rowsClientes = [];
-      payload.debtors.forEach(function(d) {
-        rowsClientes.push([
-          d.name || "",
-          d.cpf || "",
-          d.phone || "",
-          parseFloat(d.principal) || 0,
-          parseFloat(d.interestRate) || 0,
-          parseFloat(d.totalAmount) || 0,
-          parseFloat(d.remainingBalance) || 0,
-          parseFloat(d.expectedProfit) || 0,
-          parseFloat(d.realizedProfit) || 0,
-          parseInt(d.paidInstallmentsCount, 10) || 0,
-          parseInt(d.totalInstallmentsCount, 10) || 0,
-          d.statusLabel || "",
-          d.createdAt || "",
-          d.notes || ""
-        ]);
-      });
-      sheetClientes.getRange(2, 1, rowsClientes.length, headersClientes.length).setValues(rowsClientes);
-      sheetClientes.getRange(2, 4, rowsClientes.length, 1).setNumberFormat("R$ #,##0.00");
-      sheetClientes.getRange(2, 6, rowsClientes.length, 4).setNumberFormat("R$ #,##0.00");
+    // Obtém ou cria a aba "Cadastros_Backup"
+    var sheet = ss.getSheetByName("Cadastros_Backup");
+    if (!sheet) {
+      sheet = ss.getActiveSheet();
+      sheet.setName("Cadastros_Backup");
     }
-    sheetClientes.autoResizeColumns(1, headersClientes.length);
 
-    // --------------------------------------------------------------------------
-    // 3. ABA: PARCELAS E BAIXAS
-    // --------------------------------------------------------------------------
-    var sheetParcelas = ss.getSheetByName("Parcelas") || ss.insertSheet("Parcelas", 2);
-    sheetParcelas.clear();
-
-    var headersParcelas = [
-      "Cliente", "Parcela Nº", "Valor da Parcela", "Data de Vencimento", 
-      "Status da Parcela", "Data da Baixa / Pagamento", "Lucro da Parcela"
-    ];
-    sheetParcelas.appendRow(headersParcelas);
-    sheetParcelas.getRange(1, 1, 1, headersParcelas.length)
-      .setBackground("#10B981").setFontColor("#FFFFFF").setFontWeight("bold");
-
-    if (payload.installments && payload.installments.length > 0) {
-      var rowsParcelas = [];
-      payload.installments.forEach(function(inst) {
-        rowsParcelas.push([
-          inst.debtorName || "",
-          inst.number || 1,
-          parseFloat(inst.amount) || 0,
-          inst.dueDate || "",
-          inst.paid ? "PAGO" : "PENDENTE",
-          inst.paidAt || "-",
-          parseFloat(inst.profit) || 0
-        ]);
-      });
-      sheetParcelas.getRange(2, 1, rowsParcelas.length, headersParcelas.length).setValues(rowsParcelas);
-      sheetParcelas.getRange(2, 3, rowsParcelas.length, 1).setNumberFormat("R$ #,##0.00");
-      sheetParcelas.getRange(2, 7, rowsParcelas.length, 1).setNumberFormat("R$ #,##0.00");
+    // 3. Se a linha 1 estiver vazia, cria e estiliza os cabeçalhos automaticamente
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(HEADERS);
+      var headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
+      headerRange
+        .setBackground("#0f172a") // Azul ardósia escuro profissional
+        .setFontColor("#ffffff")
+        .setFontWeight("bold")
+        .setFontSize(10)
+        .setHorizontalAlignment("center");
+      sheet.setFrozenRows(1);
     }
-    sheetParcelas.autoResizeColumns(1, headersParcelas.length);
 
-    // --------------------------------------------------------------------------
-    // 4. ABA: HISTÓRICO DE SÓ JUROS
-    // --------------------------------------------------------------------------
-    var sheetJuros = ss.getSheetByName("Historico_Juros") || ss.insertSheet("Historico_Juros", 3);
-    sheetJuros.clear();
-
-    var headersJuros = [
-      "Cliente", "Valor Juros Recebido (Lucro)", "Data do Pagamento", "Vencimento Anterior", "Novo Vencimento"
-    ];
-    sheetJuros.appendRow(headersJuros);
-    sheetJuros.getRange(1, 1, 1, headersJuros.length)
-      .setBackground("#047857").setFontColor("#FFFFFF").setFontWeight("bold");
-
-    if (payload.interestPayments && payload.interestPayments.length > 0) {
-      var rowsJuros = [];
-      payload.interestPayments.forEach(function(j) {
-        rowsJuros.push([
-          j.debtorName || "",
-          parseFloat(j.amount) || 0,
-          j.paidAt || "",
-          j.previousDueDate || "",
-          j.newDueDate || ""
-        ]);
-      });
-      sheetJuros.getRange(2, 1, rowsJuros.length, headersJuros.length).setValues(rowsJuros);
-      sheetJuros.getRange(2, 2, rowsJuros.length, 1).setNumberFormat("R$ #,##0.00");
+    // 4. Suporte tanto para registro individual quanto lote/array
+    var clientsToProcess = [];
+    if (data.debtors && Array.isArray(data.debtors)) {
+      clientsToProcess = data.debtors;
+    } else if (data.data && typeof data.data === 'object') {
+      clientsToProcess = [data.data];
+    } else if (data.name) {
+      clientsToProcess = [data];
+    } else {
+      clientsToProcess = [data];
     }
-    sheetJuros.autoResizeColumns(1, headersJuros.length);
 
+    var rowsToAppend = [];
+
+    // 5. Mapeamento de cada coluna com tratamento rigoroso contra nulos/vazios
+    clientsToProcess.forEach(function(client) {
+      if (!client) return;
+
+      var principal = client.principal != null ? Number(client.principal) : 0;
+      var totalAmount = client.totalAmount != null ? Number(client.totalAmount) : 0;
+      var expectedProfit = client.expectedProfit != null 
+        ? Number(client.expectedProfit) 
+        : Math.max(0, totalAmount - principal);
+
+      var firstDueDate = client.firstDueDate || "";
+      if (!firstDueDate && client.installments && client.installments.length > 0 && client.installments[0].dueDate) {
+        firstDueDate = client.installments[0].dueDate;
+      } else if (!firstDueDate && client.startDate) {
+        firstDueDate = client.startDate;
+      }
+
+      var row = [
+        // Coluna A (1): Data/Hora
+        client.timestamp || (client.createdAt ? new Date(client.createdAt).toLocaleString("pt-BR") : new Date().toLocaleString("pt-BR")),
+        
+        // Coluna B (2): ID do Cliente
+        client.id || "",
+        
+        // Coluna C (3): Nome do Cliente
+        client.name ? String(client.name).trim() : "Sem Nome",
+        
+        // Coluna D (4): Telefone
+        client.phone ? String(client.phone).trim() : "",
+        
+        // Coluna E (5): Valor Emprestado (R$)
+        principal,
+        
+        // Coluna F (6): Taxa de Juros (%)
+        client.interestRate != null ? Number(client.interestRate) : 0,
+        
+        // Coluna G (7): Tipo de Cobrança (Diária / Mensal)
+        client.type || (client.isDaily ? "Diária" : "Mensal"),
+        
+        // Coluna H (8): Qtd Parcelas / Dias
+        client.installmentsCount != null ? Number(client.installmentsCount) : 1,
+        
+        // Coluna I (9): Valor da Parcela (R$)
+        client.installmentAmount != null ? Number(client.installmentAmount) : 0,
+        
+        // Coluna J (10): Total a Pagar (R$)
+        totalAmount,
+        
+        // Coluna K (11): Lucro Estimado (R$)
+        expectedProfit,
+        
+        // Coluna L (12): Data de Início
+        client.startDate ? String(client.startDate) : "",
+        
+        // Coluna M (13): Primeiro Vencimento
+        firstDueDate ? String(firstDueDate) : "",
+        
+        // Coluna N (14): Status
+        client.statusLabel || client.status || "Ativo",
+        
+        // Coluna O (15): Observações
+        client.notes ? String(client.notes).trim() : ""
+      ];
+
+      rowsToAppend.push(row);
+    });
+
+    // 6. Gravação na planilha via appendRow
+    rowsToAppend.forEach(function(r) {
+      sheet.appendRow(r);
+    });
+
+    // 7. Aplicação de formatos numéricos e moeda brasileira
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1 && rowsToAppend.length > 0) {
+      var startRow = lastRow - rowsToAppend.length + 1;
+      
+      // Formata colunas de valores monetários (E, I, J, K -> 5, 9, 10, 11)
+      [5, 9, 10, 11].forEach(function(col) {
+        sheet.getRange(startRow, col, rowsToAppend.length, 1).setNumberFormat("R$ #,##0.00");
+      });
+
+      // Formata coluna de taxa (F -> 6)
+      sheet.getRange(startRow, 6, rowsToAppend.length, 1).setNumberFormat("0.00'%'");
+    }
+
+    // Autoajuste da largura das colunas
+    sheet.autoResizeColumns(1, HEADERS.length);
+
+    // 8. Resposta de sucesso em JSON
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      message: "Planilha do Google Sheets sincronizada com sucesso!",
+      message: "Registro(s) salvo(s) com sucesso na planilha!",
+      rowsAdded: rowsToAppend.length,
       timestamp: new Date().toISOString()
     })).setMimeType(ContentService.MimeType.JSON);
 
@@ -173,7 +196,10 @@ function doPost(e) {
   }
 }
 
+/**
+ * Ponto de entrada GET para teste de conectividade no navegador
+ */
 function doGet(e) {
-  return ContentService.createTextOutput("Sincronizador Google Sheets Ativo. Conexão realizada com sucesso!")
+  return ContentService.createTextOutput("✅ Webhook Google Apps Script ativo e pronto para receber backups do Gordinhos Financeiro!")
     .setMimeType(ContentService.MimeType.TEXT);
 }
