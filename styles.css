@@ -508,6 +508,13 @@ body {
   flex-direction: column;
 }
 
+.kpi-stat-card.kpi-highlight-card {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(5, 150, 105, 0.04) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08);
+}
+
 .kpi-stat-label {
   font-size: 0.7rem;
   color: var(--text-muted);

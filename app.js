@@ -618,10 +618,37 @@ function formatCurrency(val) {
   return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function addMonths(dateObj, months) {
-  const d = new Date(dateObj);
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().split('T')[0];
+function addMonths(dateInput, months) {
+  if (!dateInput) return getTodayString();
+  let y, m, d;
+  if (typeof dateInput === 'string') {
+    const clean = dateInput.split('T')[0];
+    const parts = clean.split('-').map(Number);
+    if (parts.length === 3) {
+      [y, m, d] = parts;
+    } else {
+      const dt = new Date(dateInput);
+      y = dt.getFullYear();
+      m = dt.getMonth() + 1;
+      d = dt.getDate();
+    }
+  } else if (dateInput instanceof Date) {
+    y = dateInput.getFullYear();
+    m = dateInput.getMonth() + 1;
+    d = dateInput.getDate();
+  } else {
+    return String(dateInput);
+  }
+
+  const dt = new Date(y, m - 1 + months, 1);
+  const maxDaysInTargetMonth = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+  const resD = Math.min(d, maxDaysInTargetMonth);
+  dt.setDate(resD);
+
+  const resY = dt.getFullYear();
+  const resM = String(dt.getMonth() + 1).padStart(2, '0');
+  const resDay = String(dt.getDate()).padStart(2, '0');
+  return `${resY}-${resM}-${resDay}`;
 }
 
 function addDays(dateStr, days) {
@@ -877,11 +904,34 @@ function renderDashboardOverview() {
   let totalUpcoming = 0;
   let countOverdue = 0;
   let countUpcoming = 0;
+  let totalProfitOnly = 0;
 
   validDebtors.forEach(d => {
     const info = evaluateDebtorStatus(d);
-    totalPrincipal += d.principal || 0;
+    const principal = parseFloat(d.principal) || 0;
+    const totalAmount = parseFloat(d.totalAmount) || 0;
+    const interestRate = parseFloat(d.interestRate) || 0;
+
+    totalPrincipal += principal;
     totalReceivable += info.remainingBalance;
+
+    // Lucro puro dos juros contratados (sem o capital principal)
+    let contractProfit = 0;
+    if (totalAmount > principal) {
+      contractProfit = totalAmount - principal;
+    } else if (principal > 0 && interestRate > 0) {
+      contractProfit = principal * (interestRate / 100);
+    }
+
+    // Juros recebidos de renovações ("só juros")
+    let renewalsProfit = 0;
+    if (Array.isArray(d.interestPayments)) {
+      renewalsProfit = d.interestPayments.reduce((acc, p) => acc + (parseFloat(p && p.amount) || 0), 0);
+    } else if (d.interestPayments && typeof d.interestPayments === 'object') {
+      renewalsProfit = Object.values(d.interestPayments).reduce((acc, p) => acc + (parseFloat(p && p.amount) || 0), 0);
+    }
+
+    totalProfitOnly += (contractProfit + renewalsProfit);
 
     if (info.status === 'overdue') {
       totalOverdue += info.remainingBalance;
@@ -891,6 +941,16 @@ function renderDashboardOverview() {
       countUpcoming++;
     }
   });
+
+  const elProfitOnly = document.getElementById('dashTotalProfitOnly');
+  if (elProfitOnly) {
+    elProfitOnly.textContent = formatCurrency(totalProfitOnly);
+  }
+
+  const elProfitSub = document.getElementById('dashProfitOnlySub');
+  if (elProfitSub) {
+    elProfitSub.textContent = `Lucro líquido dos juros (sem capital emprestado)`;
+  }
 
   document.getElementById('dashTotalPrincipal').textContent = formatCurrency(totalPrincipal);
   document.getElementById('dashTotalContracts').textContent = `${validDebtors.length} contratos ativos`;
@@ -1045,6 +1105,35 @@ function renderCobrancasFocus() {
 // GERAÇÃO DA MENSAGEM DO WHATSAPP (INTUITIVA COM PARCELAS)
 // ==============================================================================
 
+function calculateDebtorMinInterest(debtor, nextInst) {
+  if (!debtor) return 0;
+  const principal = parseFloat(debtor.principal) || 0;
+  const totalAmount = parseFloat(debtor.totalAmount) || 0;
+  const count = parseInt(debtor.installmentsCount, 10) || (debtor.installments ? debtor.installments.length : 1) || 1;
+  const interestRate = parseFloat(debtor.interestRate) || 0;
+
+  let minInterestVal = 0;
+  if (totalAmount > principal && count > 0) {
+    minInterestVal = (totalAmount - principal) / count;
+  } else if (principal > 0 && interestRate > 0) {
+    if (debtor.isDaily) {
+      minInterestVal = (principal * (interestRate / 100)) / count;
+    } else {
+      minInterestVal = principal * (interestRate / 100);
+    }
+  }
+
+  if (minInterestVal <= 0 && nextInst && nextInst.amount) {
+    minInterestVal = nextInst.amount;
+  } else if (minInterestVal <= 0 && debtor.installments && debtor.installments.length > 0) {
+    const unpaid = debtor.installments.find(i => !i.paid);
+    if (unpaid && unpaid.amount) {
+      minInterestVal = unpaid.amount;
+    }
+  }
+  return Math.round(minInterestVal * 100) / 100;
+}
+
 function buildWhatsAppLink(debtor, info) {
   if (!debtor.phone) return '#';
   const cleanPhone = debtor.phone.replace(/\D/g, '');
@@ -1066,26 +1155,7 @@ Agradecemos a sua pontualidade e parceria!`;
   const remainingCount = info.totalCount - info.paidCount;
 
   // Cálculo do valor mínimo (apenas juros da parcela)
-  const principal = parseFloat(debtor.principal) || 0;
-  const totalAmount = parseFloat(debtor.totalAmount) || 0;
-  const count = parseInt(debtor.installmentsCount, 10) || (debtor.installments ? debtor.installments.length : 1) || 1;
-  const interestRate = parseFloat(debtor.interestRate) || 0;
-
-  let minInterestVal = 0;
-  if (totalAmount > principal && count > 0) {
-    minInterestVal = (totalAmount - principal) / count;
-  } else if (principal > 0 && interestRate > 0) {
-    if (debtor.isDaily) {
-      minInterestVal = (principal * (interestRate / 100)) / count;
-    } else {
-      minInterestVal = principal * (interestRate / 100);
-    }
-  }
-
-  if (minInterestVal <= 0 && info.nextInstallment && info.nextInstallment.amount) {
-    minInterestVal = info.nextInstallment.amount;
-  }
-  
+  const minInterestVal = calculateDebtorMinInterest(debtor, info.nextInstallment);
   const minAmount = formatCurrency(minInterestVal);
 
   let headerStatus = '';
@@ -1142,11 +1212,25 @@ function openActionSheet(debtorId) {
 
   // Botão Receber Próxima Parcela
   const payBtn = document.getElementById('actionBtnPayNext');
+  const payInterestBtn = document.getElementById('actionBtnPayInterestOnly');
+  const payInterestText = document.getElementById('actionBtnPayInterestText');
+
   if (info.nextInstallment) {
     payBtn.style.display = 'flex';
     payBtn.innerHTML = `<span style="font-size: 1.2rem;">💵</span> Receber Parcela #${info.nextInstallment.number} (${formatCurrency(info.nextInstallment.amount)})`;
+
+    if (payInterestBtn) {
+      const minInterest = calculateDebtorMinInterest(debtor, info.nextInstallment);
+      payInterestBtn.style.display = 'flex';
+      if (payInterestText) {
+        payInterestText.textContent = `Receber Só Juros (${formatCurrency(minInterest)}) • Renovar`;
+      }
+    }
   } else {
     payBtn.style.display = 'none';
+    if (payInterestBtn) {
+      payInterestBtn.style.display = 'none';
+    }
   }
 
   openModal('modalActionSheet');
@@ -1177,6 +1261,7 @@ function openInstallmentsModal(debtorId) {
     card.style.display = 'flex';
     card.style.justifyContent = 'space-between';
     card.style.alignItems = 'center';
+    card.style.gap = '0.5rem';
 
     let statusText = '';
     let statusStyle = '';
@@ -1198,19 +1283,34 @@ function openInstallmentsModal(debtorId) {
       }
     }
 
+    const minInterest = calculateDebtorMinInterest(debtor, inst);
+    const renewalBadge = (inst.interestPaidCount && inst.interestPaidCount > 0)
+      ? `<div style="font-size: 0.72rem; color: #60a5fa; margin-top: 3px; font-weight: 600;">
+           🔄 Juros pago ${inst.interestPaidCount}x (${formatCurrency(inst.lastInterestAmount || minInterest)}) • Vencimento adiado
+         </div>`
+      : '';
+
+    const payInterestBtnHtml = !inst.paid
+      ? `<button type="button" data-pay-interest="${inst.number}" title="Receber apenas os juros e adiar vencimento para o próximo mês" style="margin-top: 0; padding: 0.38rem 0.6rem; font-size: 0.72rem; width: auto; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.35); color: #60a5fa; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; white-space: nowrap;">
+           Só Juros (${formatCurrency(minInterest)})
+         </button>`
+      : '';
+
     card.innerHTML = `
-      <div>
+      <div style="flex: 1; min-width: 0;">
         <div style="font-size: 0.9rem; font-weight: 700; color: #ffffff;">
           Parcela #${inst.number} - ${formatCurrency(inst.amount)}
         </div>
         <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
           Vencimento: ${formatDateBR(inst.dueDate)}
         </div>
+        ${renewalBadge}
       </div>
-      <div style="display: flex; align-items: center; gap: 0.6rem;">
+      <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0;">
         <span style="font-size: 0.75rem; ${statusStyle}">${statusText}</span>
-        <button type="button" class="btn-new-client" data-toggle-inst="${inst.number}" style="margin-top: 0; padding: 0.4rem 0.7rem; font-size: 0.75rem; width: auto; background: ${inst.paid ? 'transparent' : 'var(--green-primary)'}; border: 1px solid ${inst.paid ? 'var(--border-subtle)' : 'transparent'}; color: ${inst.paid ? 'var(--text-muted)' : 'white'};">
-          ${inst.paid ? '↩️ Desfazer' : '✅ Baixar'}
+        ${payInterestBtnHtml}
+        <button type="button" class="btn-new-client" data-toggle-inst="${inst.number}" style="margin-top: 0; padding: 0.4rem 0.65rem; font-size: 0.75rem; width: auto; background: ${inst.paid ? 'transparent' : 'var(--green-primary)'}; border: 1px solid ${inst.paid ? 'var(--border-subtle)' : 'transparent'}; color: ${inst.paid ? 'var(--text-muted)' : 'white'}; white-space: nowrap;">
+          ${inst.paid ? '↩️ Desfazer' : '✅ Baixar Total'}
         </button>
       </div>
     `;
@@ -1258,6 +1358,95 @@ function quickPayNextInstallment() {
   render();
   closeModal('modalActionSheet');
   showToast(`Recebimento da parcela #${nextUnpaid.number} confirmado!`, 'success');
+}
+
+function payInterestOnlyNextInstallment() {
+  if (!activeDebtorForAction) return;
+  const debtor = activeDebtorForAction;
+  const nextUnpaid = debtor.installments ? debtor.installments.find(i => !i.paid) : null;
+  if (!nextUnpaid) {
+    showToast('Todas as parcelas já foram quitadas!', 'info');
+    return;
+  }
+
+  const minInterest = calculateDebtorMinInterest(debtor, nextUnpaid);
+  const oldDueDate = nextUnpaid.dueDate;
+  const newDueDate = debtor.isDaily ? addDays(oldDueDate, 1) : addMonths(oldDueDate, 1);
+
+  const confirmMsg = `Confirmar recebimento de apenas os JUROS no valor de ${formatCurrency(minInterest)} para ${debtor.name}?\n\n` +
+    `• O valor de ${formatCurrency(minInterest)} será contabilizado como LUCRO.\n` +
+    `• A dívida principal continua ativa.\n` +
+    `• O vencimento da Parcela #${nextUnpaid.number} será renovado de ${formatDateBR(oldDueDate)} para ${formatDateBR(newDueDate)}.`;
+
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  if (!Array.isArray(debtor.interestPayments)) {
+    debtor.interestPayments = [];
+  }
+  debtor.interestPayments.push({
+    id: 'int_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    installmentNumber: nextUnpaid.number,
+    amount: minInterest,
+    previousDueDate: oldDueDate,
+    newDueDate: newDueDate,
+    paidAt: new Date().toISOString()
+  });
+
+  nextUnpaid.dueDate = newDueDate;
+  nextUnpaid.interestPaidCount = (nextUnpaid.interestPaidCount || 0) + 1;
+  nextUnpaid.lastInterestAmount = minInterest;
+  nextUnpaid.lastInterestDate = new Date().toISOString();
+
+  saveData();
+  render();
+  closeModal('modalActionSheet');
+  showToast(`Juros de ${formatCurrency(minInterest)} recebidos! Vencimento adiado para ${formatDateBR(newDueDate)}.`, 'success');
+}
+
+function payInterestOnlyForInstallment(installmentNumber) {
+  if (!activeDebtorForAction) return;
+  const debtor = activeDebtorForAction;
+  const inst = debtor.installments ? debtor.installments.find(i => i.number === installmentNumber) : null;
+  if (!inst) return;
+  if (inst.paid) {
+    showToast('Esta parcela já está quitada!', 'info');
+    return;
+  }
+
+  const minInterest = calculateDebtorMinInterest(debtor, inst);
+  const oldDueDate = inst.dueDate;
+  const newDueDate = debtor.isDaily ? addDays(oldDueDate, 1) : addMonths(oldDueDate, 1);
+
+  const confirmMsg = `Confirmar recebimento de apenas os JUROS no valor de ${formatCurrency(minInterest)} para a Parcela #${inst.number} (${debtor.name})?\n\n` +
+    `• O valor de ${formatCurrency(minInterest)} será contabilizado como LUCRO.\n` +
+    `• A dívida principal permanece ativa.\n` +
+    `• O vencimento será renovado de ${formatDateBR(oldDueDate)} para ${formatDateBR(newDueDate)}.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  if (!Array.isArray(debtor.interestPayments)) {
+    debtor.interestPayments = [];
+  }
+  debtor.interestPayments.push({
+    id: 'int_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    installmentNumber: inst.number,
+    amount: minInterest,
+    previousDueDate: oldDueDate,
+    newDueDate: newDueDate,
+    paidAt: new Date().toISOString()
+  });
+
+  inst.dueDate = newDueDate;
+  inst.interestPaidCount = (inst.interestPaidCount || 0) + 1;
+  inst.lastInterestAmount = minInterest;
+  inst.lastInterestDate = new Date().toISOString();
+
+  saveData();
+  render();
+  openInstallmentsModal(debtor.id);
+  showToast(`Juros de ${formatCurrency(minInterest)} recebidos! Parcela renovada para ${formatDateBR(newDueDate)}.`, 'success');
 }
 
 function deleteActiveDebtor() {
@@ -1510,6 +1699,10 @@ function setupEventListeners() {
 
   // Ações do Action Sheet
   document.getElementById('actionBtnPayNext').addEventListener('click', quickPayNextInstallment);
+  const payInterestOnlyBtn = document.getElementById('actionBtnPayInterestOnly');
+  if (payInterestOnlyBtn) {
+    payInterestOnlyBtn.addEventListener('click', payInterestOnlyNextInstallment);
+  }
   document.getElementById('actionBtnViewInstallments').addEventListener('click', () => {
     if (activeDebtorForAction) {
       closeModal('modalActionSheet');
@@ -1518,8 +1711,15 @@ function setupEventListeners() {
   });
   document.getElementById('actionBtnDelete').addEventListener('click', deleteActiveDebtor);
 
-  // Cliques dentro do modal de parcelas (Baixar / Desfazer)
+  // Cliques dentro do modal de parcelas (Baixar / Desfazer / Só Juros)
   document.getElementById('installmentsListCards').addEventListener('click', (e) => {
+    const payIntBtn = e.target.closest('[data-pay-interest]');
+    if (payIntBtn) {
+      const num = parseInt(payIntBtn.dataset.payInterest, 10);
+      payInterestOnlyForInstallment(num);
+      return;
+    }
+
     const btn = e.target.closest('[data-toggle-inst]');
     if (btn) {
       const num = parseInt(btn.dataset.toggleInst, 10);
