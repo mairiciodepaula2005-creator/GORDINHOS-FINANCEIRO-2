@@ -1009,6 +1009,7 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
     renewals.forEach(ren => {
       if (ren && (ren.amount != null || ren.paidAt)) {
         const renAmount = parseFloat(ren.amount) || 0;
+        const renAbatement = parseFloat(ren.abatementAmount) || 0;
         const dateStr = ren.previousDueDate || ren.paidAt || ren.newDueDate || getTodayString();
         const { year: y, month: m } = extractYearMonth(dateStr);
 
@@ -1016,14 +1017,19 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
         const matchesMonth = filterMonth === 'all' || String(m) === String(filterMonth);
 
         if (matchesYear && matchesMonth) {
+          const typeLabel = renAbatement > 0
+            ? `Só Juros + Abatimento (${formatCurrency(renAbatement)}) - Renovação #${ren.installmentNumber || '1'}`
+            : `Só Juros (Renovação #${ren.installmentNumber || '1'})`;
+
           entries.push({
             debtorId: d.id,
             debtorName: d.name,
             type: 'interest_only',
-            typeLabel: `Só Juros (Renovação #${ren.installmentNumber || '1'})`,
+            typeLabel: typeLabel,
             installmentNumber: ren.installmentNumber,
-            installmentAmount: renAmount,
+            installmentAmount: renAmount + renAbatement,
             profit: renAmount,
+            abatementAmount: renAbatement,
             date: dateStr,
             dueDate: ren.previousDueDate || ren.newDueDate,
             paidAt: ren.paidAt,
@@ -2557,11 +2563,15 @@ function openInstallmentsModal(debtorId) {
     }
 
     const minInterest = calculateDebtorMinInterest(debtor, inst);
-    const renewalBadge = (inst.interestPaidCount && inst.interestPaidCount > 0)
-      ? `<div style="font-size: 0.72rem; color: #60a5fa; margin-top: 3px; font-weight: 600;">
-           🔄 Juros pago ${inst.interestPaidCount}x (${formatCurrency(inst.lastInterestAmount || minInterest)}) • Vencimento adiado
-         </div>`
-      : '';
+    let renewalBadge = '';
+    if (inst.interestPaidCount && inst.interestPaidCount > 0) {
+      const abatementNote = (inst.lastAbatementAmount && inst.lastAbatementAmount > 0)
+        ? ` • Abatido: ${formatCurrency(inst.lastAbatementAmount)}`
+        : '';
+      renewalBadge = `<div style="font-size: 0.72rem; color: #60a5fa; margin-top: 3px; font-weight: 600;">
+           🔄 Juros pago ${inst.interestPaidCount}x (${formatCurrency(inst.lastInterestAmount || minInterest)})${abatementNote} • Vencimento adiado
+         </div>`;
+    }
 
     const payInterestBtnHtml = !inst.paid
       ? `<button type="button" data-pay-interest="${inst.number}" title="Receber apenas os juros e adiar vencimento para o próximo mês" style="margin-top: 0; padding: 0.38rem 0.6rem; font-size: 0.72rem; width: auto; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.35); color: #60a5fa; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; white-space: nowrap;">
@@ -2643,6 +2653,189 @@ function quickPayNextInstallment() {
   triggerGoogleSheetsAutoSync();
 }
 
+let activeInterestPaymentTarget = null;
+
+function openPayInterestOnlyModal(debtor, inst) {
+  if (!debtor || !inst) return;
+
+  const minInterest = calculateDebtorMinInterest(debtor, inst);
+  const oldDueDate = inst.dueDate;
+  const newDueDate = debtor.isDaily ? addDays(oldDueDate, 1) : addMonths(oldDueDate, 1);
+
+  activeInterestPaymentTarget = {
+    debtor: debtor,
+    inst: inst,
+    debtorId: debtor.id,
+    installmentNumber: inst.number,
+    minInterest: minInterest,
+    oldDueDate: oldDueDate,
+    newDueDate: newDueDate,
+    currentAmount: inst.amount
+  };
+
+  const subEl = document.getElementById('interestModalSubtitle');
+  if (subEl) {
+    subEl.textContent = `${debtor.name} • Parcela #${inst.number}`;
+  }
+
+  const oldDueEl = document.getElementById('interestModalOldDueDate');
+  if (oldDueEl) oldDueEl.textContent = formatDateBR(oldDueDate);
+
+  const newDueEl = document.getElementById('interestModalNewDueDate');
+  if (newDueEl) newDueEl.textContent = formatDateBR(newDueDate);
+
+  const curAmtEl = document.getElementById('interestModalCurrentAmount');
+  if (curAmtEl) curAmtEl.textContent = formatCurrency(inst.amount);
+
+  const intInput = document.getElementById('interestModalAmountInput');
+  if (intInput) intInput.value = minInterest.toFixed(2);
+
+  const abatInput = document.getElementById('interestModalAbatementInput');
+  if (abatInput) abatInput.value = '0.00';
+
+  updateInterestModalSummary();
+
+  closeModal('modalActionSheet');
+  openModal('modalPayInterestOnly');
+}
+
+function updateInterestModalSummary() {
+  if (!activeInterestPaymentTarget) return;
+
+  const intInput = document.getElementById('interestModalAmountInput');
+  const abatInput = document.getElementById('interestModalAbatementInput');
+
+  const interestVal = parseFloat(intInput ? intInput.value : 0) || 0;
+  const abatementVal = parseFloat(abatInput ? abatInput.value : 0) || 0;
+
+  const totalReceived = interestVal + abatementVal;
+  const currentAmount = activeInterestPaymentTarget.currentAmount || 0;
+  const newBalance = Math.max(0, currentAmount - abatementVal);
+
+  const totalRecEl = document.getElementById('interestModalSummaryTotalReceived');
+  if (totalRecEl) totalRecEl.textContent = formatCurrency(totalReceived);
+
+  const newBalEl = document.getElementById('interestModalSummaryNewBalance');
+  if (newBalEl) {
+    if (abatementVal > 0) {
+      newBalEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.75rem; margin-right: 4px;">${formatCurrency(currentAmount)}</span> <span>${formatCurrency(newBalance)}</span>`;
+    } else {
+      newBalEl.textContent = formatCurrency(currentAmount);
+    }
+  }
+
+  const abatWarnEl = document.getElementById('interestModalAbatementWarning');
+  if (abatWarnEl) {
+    if (abatementVal > currentAmount) {
+      abatWarnEl.style.display = 'block';
+      abatWarnEl.textContent = `Atenção: o valor informado para abater (${formatCurrency(abatementVal)}) cobre todo o saldo da parcela (${formatCurrency(currentAmount)}). A parcela será totalmente quitada!`;
+    } else {
+      abatWarnEl.style.display = 'none';
+    }
+  }
+}
+
+function confirmInterestPaymentWithAbatement() {
+  if (!activeInterestPaymentTarget) return;
+
+  const debtor = (Array.isArray(debtors) ? debtors.find(d => d.id === activeInterestPaymentTarget.debtorId) : null)
+    || activeInterestPaymentTarget.debtor
+    || activeDebtorForAction;
+
+  if (!debtor) {
+    showToast('Cliente não encontrado!', 'error');
+    closeModal('modalPayInterestOnly');
+    return;
+  }
+  normalizeDebtor(debtor);
+
+  const inst = (debtor.installments ? debtor.installments.find(i => i.number === activeInterestPaymentTarget.installmentNumber) : null)
+    || activeInterestPaymentTarget.inst;
+
+  if (!inst) {
+    showToast('Parcela não encontrada!', 'error');
+    closeModal('modalPayInterestOnly');
+    return;
+  }
+
+  const intInput = document.getElementById('interestModalAmountInput');
+  const abatInput = document.getElementById('interestModalAbatementInput');
+
+  const interestVal = Math.round((parseFloat(intInput ? intInput.value : 0) || 0) * 100) / 100;
+  const abatementVal = Math.round((parseFloat(abatInput ? abatInput.value : 0) || 0) * 100) / 100;
+
+  if (interestVal < 0 || abatementVal < 0) {
+    alert('Por favor, informe valores positivos válidos.');
+    return;
+  }
+
+  if (interestVal === 0 && abatementVal === 0) {
+    alert('Por favor, informe ao menos o valor dos juros ou um valor para abater da dívida.');
+    return;
+  }
+
+  const oldDueDate = activeInterestPaymentTarget.oldDueDate;
+  const newDueDate = activeInterestPaymentTarget.newDueDate;
+
+  if (!Array.isArray(debtor.interestPayments)) {
+    debtor.interestPayments = [];
+  }
+
+  debtor.interestPayments.push({
+    id: 'int_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    installmentNumber: inst.number,
+    amount: interestVal,
+    abatementAmount: abatementVal,
+    totalPaid: Math.round((interestVal + abatementVal) * 100) / 100,
+    previousDueDate: oldDueDate,
+    newDueDate: newDueDate,
+    paidAt: new Date().toISOString()
+  });
+
+  if (abatementVal > 0) {
+    inst.amount = Math.max(0, Math.round((inst.amount - abatementVal) * 100) / 100);
+    inst.lastAbatementAmount = (inst.lastAbatementAmount || 0) + abatementVal;
+
+    if (debtor.principal != null) {
+      debtor.principal = Math.max(0, Math.round(((parseFloat(debtor.principal) || 0) - abatementVal) * 100) / 100);
+    }
+    debtor.totalAmount = Math.round(debtor.installments.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0) * 100) / 100;
+
+    if (inst.amount <= 0) {
+      inst.paid = true;
+      inst.paidAt = new Date().toISOString();
+      inst.dueDate = oldDueDate;
+    } else {
+      inst.dueDate = newDueDate;
+      inst.interestPaidCount = (inst.interestPaidCount || 0) + 1;
+      inst.lastInterestAmount = interestVal;
+      inst.lastInterestDate = new Date().toISOString();
+    }
+  } else {
+    inst.dueDate = newDueDate;
+    inst.interestPaidCount = (inst.interestPaidCount || 0) + 1;
+    inst.lastInterestAmount = interestVal;
+    inst.lastInterestDate = new Date().toISOString();
+  }
+
+  saveData();
+  render();
+  closeModal('modalPayInterestOnly');
+
+  const modalInstEl = document.getElementById('modalInstallments');
+  if (modalInstEl && modalInstEl.classList.contains('active')) {
+    openInstallmentsModal(debtor.id);
+  }
+
+  if (abatementVal > 0) {
+    showToast(`Juros de ${formatCurrency(interestVal)} recebidos e ${formatCurrency(abatementVal)} abatidos da dívida! Saldo restante: ${formatCurrency(inst.amount)}.`, 'success');
+  } else {
+    showToast(`Juros de ${formatCurrency(interestVal)} recebidos! Vencimento adiado para ${formatDateBR(newDueDate)}.`, 'success');
+  }
+
+  triggerGoogleSheetsAutoSync();
+}
+
 function payInterestOnlyNextInstallment() {
   if (!activeDebtorForAction) return;
   normalizeDebtor(activeDebtorForAction);
@@ -2656,41 +2849,7 @@ function payInterestOnlyNextInstallment() {
     return;
   }
 
-  const minInterest = calculateDebtorMinInterest(debtor, nextUnpaid);
-  const oldDueDate = nextUnpaid.dueDate;
-  const newDueDate = debtor.isDaily ? addDays(oldDueDate, 1) : addMonths(oldDueDate, 1);
-
-  const confirmMsg = `Confirmar recebimento de apenas os JUROS no valor de ${formatCurrency(minInterest)} para ${debtor.name}?\n\n` +
-    `• O valor de ${formatCurrency(minInterest)} será contabilizado como LUCRO.\n` +
-    `• A dívida principal continua ativa.\n` +
-    `• O vencimento da Parcela #${nextUnpaid.number} será renovado de ${formatDateBR(oldDueDate)} para ${formatDateBR(newDueDate)}.`;
-
-  if (!confirm(confirmMsg)) {
-    return;
-  }
-
-  if (!Array.isArray(debtor.interestPayments)) {
-    debtor.interestPayments = [];
-  }
-  debtor.interestPayments.push({
-    id: 'int_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-    installmentNumber: nextUnpaid.number,
-    amount: minInterest,
-    previousDueDate: oldDueDate,
-    newDueDate: newDueDate,
-    paidAt: new Date().toISOString()
-  });
-
-  nextUnpaid.dueDate = newDueDate;
-  nextUnpaid.interestPaidCount = (nextUnpaid.interestPaidCount || 0) + 1;
-  nextUnpaid.lastInterestAmount = minInterest;
-  nextUnpaid.lastInterestDate = new Date().toISOString();
-
-  saveData();
-  render();
-  closeModal('modalActionSheet');
-  showToast(`Juros de ${formatCurrency(minInterest)} recebidos! Vencimento adiado para ${formatDateBR(newDueDate)}.`, 'success');
-  triggerGoogleSheetsAutoSync();
+  openPayInterestOnlyModal(debtor, nextUnpaid);
 }
 
 function payInterestOnlyForInstallment(installmentNumber) {
@@ -2707,39 +2866,7 @@ function payInterestOnlyForInstallment(installmentNumber) {
     return;
   }
 
-  const minInterest = calculateDebtorMinInterest(debtor, inst);
-  const oldDueDate = inst.dueDate;
-  const newDueDate = debtor.isDaily ? addDays(oldDueDate, 1) : addMonths(oldDueDate, 1);
-
-  const confirmMsg = `Confirmar recebimento de apenas os JUROS no valor de ${formatCurrency(minInterest)} para a Parcela #${inst.number} (${debtor.name})?\n\n` +
-    `• O valor de ${formatCurrency(minInterest)} será contabilizado como LUCRO.\n` +
-    `• A dívida principal permanece ativa.\n` +
-    `• O vencimento será renovado de ${formatDateBR(oldDueDate)} para ${formatDateBR(newDueDate)}.`;
-
-  if (!confirm(confirmMsg)) return;
-
-  if (!Array.isArray(debtor.interestPayments)) {
-    debtor.interestPayments = [];
-  }
-  debtor.interestPayments.push({
-    id: 'int_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-    installmentNumber: inst.number,
-    amount: minInterest,
-    previousDueDate: oldDueDate,
-    newDueDate: newDueDate,
-    paidAt: new Date().toISOString()
-  });
-
-  inst.dueDate = newDueDate;
-  inst.interestPaidCount = (inst.interestPaidCount || 0) + 1;
-  inst.lastInterestAmount = minInterest;
-  inst.lastInterestDate = new Date().toISOString();
-
-  saveData();
-  render();
-  openInstallmentsModal(debtor.id);
-  showToast(`Juros de ${formatCurrency(minInterest)} recebidos! Parcela renovada para ${formatDateBR(newDueDate)}.`, 'success');
-  triggerGoogleSheetsAutoSync();
+  openPayInterestOnlyModal(debtor, inst);
 }
 
 function deleteActiveDebtor() {
@@ -3020,11 +3147,14 @@ function getGoogleSheetsExportPayload() {
     const renewals = Array.isArray(d.interestPayments) ? d.interestPayments : [];
     renewals.forEach(r => {
       const amt = parseFloat(r.amount) || 0;
+      const abatement = parseFloat(r.abatementAmount) || 0;
       debtorRealizedProfit += amt;
       allInterestPayments.push({
         debtorId: d.id,
         debtorName: d.name,
         amount: amt,
+        abatementAmount: abatement,
+        totalPaid: amt + abatement,
         paidAt: r.paidAt || '',
         previousDueDate: r.previousDueDate || '',
         newDueDate: r.newDueDate || ''
@@ -3449,6 +3579,21 @@ function setupEventListeners() {
     }
   });
   document.getElementById('actionBtnDelete').addEventListener('click', deleteActiveDebtor);
+
+  const interestConfirmBtn = document.getElementById('interestModalConfirmBtn');
+  if (interestConfirmBtn) {
+    interestConfirmBtn.addEventListener('click', confirmInterestPaymentWithAbatement);
+  }
+
+  const interestAmountInp = document.getElementById('interestModalAmountInput');
+  if (interestAmountInp) {
+    interestAmountInp.addEventListener('input', updateInterestModalSummary);
+  }
+
+  const interestAbatementInp = document.getElementById('interestModalAbatementInput');
+  if (interestAbatementInp) {
+    interestAbatementInp.addEventListener('input', updateInterestModalSummary);
+  }
 
   // Cliques dentro do modal de parcelas (Baixar / Desfazer / Só Juros)
   document.getElementById('installmentsListCards').addEventListener('click', (e) => {
