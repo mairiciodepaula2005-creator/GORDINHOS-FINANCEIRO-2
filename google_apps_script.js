@@ -4,20 +4,16 @@
  * ARQUIVO: Code.gs (Google Apps Script)
  * ==============================================================================
  * 
- * INSTRUÇÕES RÁPIDAS DE INSTALAÇÃO:
- * 1. Abra o Google Drive (https://drive.google.com) e crie uma nova Planilha Google.
- * 2. Dê um nome à planilha (ex: "Backup Gordinhos Financeiro").
- * 3. No menu superior da planilha, clique em: Extensões > Apps Script.
- * 4. Apague todo o conteúdo que estiver no editor e cole todo este código abaixo.
- * 5. No canto superior direito, clique em "Implantar" (Deploy) > "Nova implantação".
- * 6. Clique na engrenagem ao lado de "Selecionar tipo" e escolha "App da Web" (Web app).
- * 7. Configure as opções:
- *    - Descrição: Backup Automático Financeiro
- *    - Executar como: Eu (seu e-mail)
- *    - Quem pode acessar: Qualquer pessoa (Anyone)  <--- IMPORTANTE!
- * 8. Clique em "Implantar" e autorize as permissões da sua conta Google.
- * 9. Copie a "URL do app da web" gerada (termina com /exec).
- * 10. No seu sistema (site), vá na aba "Mais", cole a URL no campo de Webhook e salve!
+ * INSTRUÇÕES RÁPIDAS:
+ * 1. Cole este código no Apps Script da sua planilha.
+ * 2. Para importar todos os cadastros já existentes do Firebase de uma vez só:
+ *    - Na barra superior do Apps Script, selecione a função "importarTodosDoFirebase".
+ *    - Clique em "Executar". Pronto! Todos os 21 clientes serão adicionados na planilha.
+ * 
+ * 3. Para o backup automático contínuo funcionar pelo site:
+ *    - Clique em "Implantar" > "Gerenciar implantações" > ícone do lápis (Editar).
+ *    - Em "Quem pode acessar", selecione "Qualquer pessoa" (Anyone).
+ *    - Salve a implantação.
  * ==============================================================================
  */
 
@@ -41,11 +37,47 @@ var HEADERS = [
 ];
 
 /**
+ * IMPORTAÇÃO DIRETA DO FIREBASE:
+ * Puxa todos os cadastros existentes diretamente do banco de dados do Firebase
+ * e grava na planilha em segundos, sem depender de permissões de webhook.
+ */
+function importarTodosDoFirebase() {
+  var firebaseUrl = "https://gordinhos-finacneiro-default-rtdb.firebaseio.com/debtors.json";
+  Logger.log("Buscando registros no Firebase...");
+  
+  var response = UrlFetchApp.fetch(firebaseUrl);
+  var rawList = JSON.parse(response.getContentText());
+
+  if (!rawList) {
+    Logger.log("Nenhum dado encontrado no Firebase.");
+    return "Nenhum dado encontrado no Firebase.";
+  }
+
+  // Converte para array se vier como objeto
+  var debtors = Array.isArray(rawList) ? rawList : Object.values(rawList);
+  var validDebtors = debtors.filter(function(d) {
+    return d && typeof d === 'object' && d.name;
+  });
+
+  Logger.log("Total de cadastros válidos encontrados: " + validDebtors.length);
+
+  var mockEvent = {
+    postData: {
+      contents: JSON.stringify({ debtors: validDebtors })
+    }
+  };
+
+  var res = doPost(mockEvent);
+  Logger.log("Resultado da gravação: " + res.getContent());
+  return "Sucesso! " + validDebtors.length + " cadastros importados para a planilha.";
+}
+
+/**
  * Ponto de entrada POST que recebe os dados enviados pelo Front-end
  */
 function doPost(e) {
   try {
-    // 1. Validação de dados recebidos
+    // 1. Validação de segurança dos dados recebidos
     if (!e || !e.postData || !e.postData.contents) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "error",
@@ -57,7 +89,7 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // Obtém ou cria a aba "Cadastros_Backup"
+    // Obtém ou define a aba de backup
     var sheet = ss.getSheetByName("Cadastros_Backup");
     if (!sheet) {
       sheet = ss.getActiveSheet();
@@ -69,7 +101,7 @@ function doPost(e) {
       sheet.appendRow(HEADERS);
       var headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
       headerRange
-        .setBackground("#0f172a") // Azul ardósia escuro profissional
+        .setBackground("#0f172a") // Azul ardósia profissional
         .setFontColor("#ffffff")
         .setFontWeight("bold")
         .setFontSize(10)
@@ -77,7 +109,7 @@ function doPost(e) {
       sheet.setFrozenRows(1);
     }
 
-    // 4. Suporte tanto para registro individual quanto lote/array
+    // 4. Suporte flexível para registro individual ou em lote
     var clientsToProcess = [];
     if (data.debtors && Array.isArray(data.debtors)) {
       clientsToProcess = data.debtors;
@@ -91,7 +123,7 @@ function doPost(e) {
 
     var rowsToAppend = [];
 
-    // 5. Mapeamento de cada coluna com tratamento rigoroso contra nulos/vazios
+    // 5. Mapeamento coluna por coluna com proteção total contra nulos / vazios
     clientsToProcess.forEach(function(client) {
       if (!client) return;
 
@@ -158,12 +190,12 @@ function doPost(e) {
       rowsToAppend.push(row);
     });
 
-    // 6. Gravação na planilha via appendRow
+    // 6. Gravação na planilha via appendRow (nunca desalinha as colunas)
     rowsToAppend.forEach(function(r) {
       sheet.appendRow(r);
     });
 
-    // 7. Aplicação de formatos numéricos e moeda brasileira
+    // 7. Formatação automática de Moeda (R$) e Porcentagem (%)
     var lastRow = sheet.getLastRow();
     if (lastRow > 1 && rowsToAppend.length > 0) {
       var startRow = lastRow - rowsToAppend.length + 1;
@@ -177,13 +209,12 @@ function doPost(e) {
       sheet.getRange(startRow, 6, rowsToAppend.length, 1).setNumberFormat("0.00'%'");
     }
 
-    // Autoajuste da largura das colunas
     sheet.autoResizeColumns(1, HEADERS.length);
 
-    // 8. Resposta de sucesso em JSON
+    // 8. Resposta de confirmação
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      message: "Registro(s) salvo(s) com sucesso na planilha!",
+      message: "Registro(s) gravado(s) com sucesso na planilha!",
       rowsAdded: rowsToAppend.length,
       timestamp: new Date().toISOString()
     })).setMimeType(ContentService.MimeType.JSON);
@@ -197,7 +228,7 @@ function doPost(e) {
 }
 
 /**
- * Ponto de entrada GET para teste de conectividade no navegador
+ * Teste de conectividade acessando a URL no navegador
  */
 function doGet(e) {
   return ContentService.createTextOutput("✅ Webhook Google Apps Script ativo e pronto para receber backups do Gordinhos Financeiro!")
