@@ -4,16 +4,10 @@
  * ARQUIVO: Code.gs (Google Apps Script)
  * ==============================================================================
  * 
- * INSTRUÇÕES RÁPIDAS:
- * 1. Cole este código no Apps Script da sua planilha.
- * 2. Para importar todos os cadastros já existentes do Firebase de uma vez só:
- *    - Na barra superior do Apps Script, selecione a função "importarTodosDoFirebase".
- *    - Clique em "Executar". Pronto! Todos os 21 clientes serão adicionados na planilha.
- * 
- * 3. Para o backup automático contínuo funcionar pelo site:
- *    - Clique em "Implantar" > "Gerenciar implantações" > ícone do lápis (Editar).
- *    - Em "Quem pode acessar", selecione "Qualquer pessoa" (Anyone).
- *    - Salve a implantação.
+ * ATUALIZAÇÕES:
+ * 1. Ordem por novos clientes no topo: Cada novo cliente é inserido na Linha 2 (acima dos anteriores).
+ * 2. Correção da porcentagem: 30% agora é exibido corretamente como 30,00% (corrigido o 3000%).
+ * 3. Função "importarTodosDoFirebase": Recarrega todos os clientes em ordem cronológica (mais recentes no topo).
  * ==============================================================================
  */
 
@@ -37,9 +31,10 @@ var HEADERS = [
 ];
 
 /**
- * IMPORTAÇÃO DIRETA DO FIREBASE:
- * Puxa todos os cadastros existentes diretamente do banco de dados do Firebase
- * e grava na planilha em segundos, sem depender de permissões de webhook.
+ * IMPORTAÇÃO E CORREÇÃO DIRETA DO FIREBASE:
+ * Limpa a planilha antiga e reinsere todos os clientes do Firebase:
+ * - Mais recentes no topo (abaixo do cabeçalho)
+ * - Porcentagem corrigida para 30,00%
  */
 function importarTodosDoFirebase() {
   var firebaseUrl = "https://gordinhos-finacneiro-default-rtdb.firebaseio.com/debtors.json";
@@ -50,58 +45,61 @@ function importarTodosDoFirebase() {
 
   if (!rawList) {
     Logger.log("Nenhum dado encontrado no Firebase.");
-    return "Nenhum dado encontrado no Firebase.";
+    return;
   }
 
-  // Converte para array se vier como objeto
   var debtors = Array.isArray(rawList) ? rawList : Object.values(rawList);
   var validDebtors = debtors.filter(function(d) {
     return d && typeof d === 'object' && d.name;
   });
 
-  Logger.log("Total de cadastros válidos encontrados: " + validDebtors.length);
+  // Ordena os clientes do mais recente para o mais antigo (novos no topo)
+  validDebtors.sort(function(a, b) {
+    var timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    var timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (!timeA && a.id) timeA = parseInt(String(a.id).replace(/\D/g, ''), 10) || 0;
+    if (!timeB && b.id) timeB = parseInt(String(b.id).replace(/\D/g, ''), 10) || 0;
+    return timeB - timeA; // Decrescente: mais recentes primeiro
+  });
 
   var mockEvent = {
     postData: {
-      contents: JSON.stringify({ debtors: validDebtors })
+      contents: JSON.stringify({ 
+        debtors: validDebtors,
+        clearExisting: true 
+      })
     }
   };
 
   var res = doPost(mockEvent);
-  Logger.log("Resultado da gravação: " + res.getContent());
-  return "Sucesso! " + validDebtors.length + " cadastros importados para a planilha.";
+  Logger.log("Resultado: " + res.getContent());
 }
 
 /**
- * Ponto de entrada POST que recebe os dados enviados pelo Front-end
+ * Ponto de entrada POST chamado pelo site para novos cadastros
  */
 function doPost(e) {
   try {
-    // 1. Validação de segurança dos dados recebidos
     if (!e || !e.postData || !e.postData.contents) {
-      return ContentService.createTextOutput(JSON.stringify({
-        status: "error",
-        message: "Nenhum dado recebido no payload."
-      })).setMimeType(ContentService.MimeType.JSON);
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Vazio" })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 2. Parse seguro do JSON
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // Obtém ou define a aba de backup
     var sheet = ss.getSheetByName("Cadastros_Backup");
     if (!sheet) {
       sheet = ss.getActiveSheet();
       sheet.setName("Cadastros_Backup");
     }
 
-    // 3. Se a linha 1 estiver vazia, cria e estiliza os cabeçalhos automaticamente
-    if (sheet.getLastRow() === 0) {
+    // Se solicitado limpeza ou se a planilha estiver vazia, recria o cabeçalho
+    if (data.clearExisting === true || sheet.getLastRow() === 0) {
+      sheet.clear();
       sheet.appendRow(HEADERS);
       var headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
       headerRange
-        .setBackground("#0f172a") // Azul ardósia profissional
+        .setBackground("#0f172a") // Azul ardósia escuro profissional
         .setFontColor("#ffffff")
         .setFontWeight("bold")
         .setFontSize(10)
@@ -109,7 +107,6 @@ function doPost(e) {
       sheet.setFrozenRows(1);
     }
 
-    // 4. Suporte flexível para registro individual ou em lote
     var clientsToProcess = [];
     if (data.debtors && Array.isArray(data.debtors)) {
       clientsToProcess = data.debtors;
@@ -121,9 +118,8 @@ function doPost(e) {
       clientsToProcess = [data];
     }
 
-    var rowsToAppend = [];
+    var rowsToAdd = [];
 
-    // 5. Mapeamento coluna por coluna com proteção total contra nulos / vazios
     clientsToProcess.forEach(function(client) {
       if (!client) return;
 
@@ -132,6 +128,10 @@ function doPost(e) {
       var expectedProfit = client.expectedProfit != null 
         ? Number(client.expectedProfit) 
         : Math.max(0, totalAmount - principal);
+
+      // Correção da taxa de juros: Se o valor for 30, no Excel/Sheets 100% = 1, então 30% = 0.30
+      var rawInterest = client.interestRate != null ? Number(client.interestRate) : 0;
+      var rateDecimal = rawInterest > 1 ? (rawInterest / 100) : rawInterest;
 
       var firstDueDate = client.firstDueDate || "";
       if (!firstDueDate && client.installments && client.installments.length > 0 && client.installments[0].dueDate) {
@@ -156,8 +156,8 @@ function doPost(e) {
         // Coluna E (5): Valor Emprestado (R$)
         principal,
         
-        // Coluna F (6): Taxa de Juros (%)
-        client.interestRate != null ? Number(client.interestRate) : 0,
+        // Coluna F (6): Taxa de Juros (%) -> 0.30 para exibir 30,00%
+        rateDecimal,
         
         // Coluna G (7): Tipo de Cobrança (Diária / Mensal)
         client.type || (client.isDaily ? "Diária" : "Mensal"),
@@ -187,50 +187,51 @@ function doPost(e) {
         client.notes ? String(client.notes).trim() : ""
       ];
 
-      rowsToAppend.push(row);
+      rowsToAdd.push(row);
     });
 
-    // 6. Gravação na planilha via appendRow (nunca desalinha as colunas)
-    rowsToAppend.forEach(function(r) {
-      sheet.appendRow(r);
-    });
+    if (rowsToAdd.length === 0) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", rowsAdded: 0 })).setMimeType(ContentService.MimeType.JSON);
+    }
 
-    // 7. Formatação automática de Moeda (R$) e Porcentagem (%)
-    var lastRow = sheet.getLastRow();
-    if (lastRow > 1 && rowsToAppend.length > 0) {
-      var startRow = lastRow - rowsToAppend.length + 1;
-      
-      // Formata colunas de valores monetários (E, I, J, K -> 5, 9, 10, 11)
-      [5, 9, 10, 11].forEach(function(col) {
-        sheet.getRange(startRow, col, rowsToAppend.length, 1).setNumberFormat("R$ #,##0.00");
-      });
-
-      // Formata coluna de taxa (F -> 6)
-      sheet.getRange(startRow, 6, rowsToAppend.length, 1).setNumberFormat("0.00'%'");
+    // REGRA DE ORDEM: Inserir novos clientes no TOPO (Linha 2, logo abaixo do cabeçalho)
+    if (data.clearExisting === true) {
+      // Se foi recarga total, insere a partir da linha 2
+      sheet.getRange(2, 1, rowsToAdd.length, HEADERS.length).setValues(rowsToAdd);
+      formatRows(sheet, 2, rowsToAdd.length);
+    } else {
+      // Se for novo cadastro pelo site, insere novas linhas no topo
+      sheet.insertRowsBefore(2, rowsToAdd.length);
+      sheet.getRange(2, 1, rowsToAdd.length, HEADERS.length).setValues(rowsToAdd);
+      formatRows(sheet, 2, rowsToAdd.length);
     }
 
     sheet.autoResizeColumns(1, HEADERS.length);
 
-    // 8. Resposta de confirmação
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      message: "Registro(s) gravado(s) com sucesso na planilha!",
-      rowsAdded: rowsToAppend.length,
+      rowsAdded: rowsToAdd.length,
       timestamp: new Date().toISOString()
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "error",
-      message: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 /**
- * Teste de conectividade acessando a URL no navegador
+ * Função auxiliar para formatar moedas (R$) e porcentagens (%)
  */
+function formatRows(sheet, startRow, rowCount) {
+  // Formata colunas de valores monetários (E, I, J, K -> 5, 9, 10, 11)
+  [5, 9, 10, 11].forEach(function(col) {
+    sheet.getRange(startRow, col, rowCount, 1).setNumberFormat("R$ #,##0.00");
+  });
+
+  // Formata coluna de taxa (F -> 6) como porcentagem correta (ex: 30,00%)
+  sheet.getRange(startRow, 6, rowCount, 1).setNumberFormat("0.00%");
+}
+
 function doGet(e) {
-  return ContentService.createTextOutput("✅ Webhook Google Apps Script ativo e pronto para receber backups do Gordinhos Financeiro!")
-    .setMimeType(ContentService.MimeType.TEXT);
+  return ContentService.createTextOutput("✅ Webhook Google Apps Script ativo!").setMimeType(ContentService.MimeType.TEXT);
 }

@@ -1266,6 +1266,536 @@ function openProfitStatementModal() {
   openModal('modalProfitStatement');
 }
 
+// ==============================================================================
+// RELATÓRIO EXECUTIVO ANUAL DE LUCRO REALIZADO
+// ==============================================================================
+
+let selectedAnnualReportYear = new Date().getFullYear();
+
+function getAvailableProfitYears() {
+  const validDebtors = debtors.filter(d => d && typeof d === 'object' && d.name);
+  const allYears = new Set();
+  const currentYear = new Date().getFullYear();
+  allYears.add(currentYear);
+
+  validDebtors.forEach(d => {
+    normalizeDebtor(d);
+    if (Array.isArray(d.installments)) {
+      d.installments.forEach(i => {
+        if (i && i.paid) {
+          const dt = i.dueDate || i.paidAt || d.createdAt;
+          if (dt) {
+            const { year: y } = extractYearMonth(dt);
+            if (!isNaN(y) && y > 2000) allYears.add(y);
+          }
+        }
+      });
+    }
+    const renewals = Array.isArray(d.interestPayments) ? d.interestPayments : [];
+    renewals.forEach(r => {
+      if (r && (r.previousDueDate || r.paidAt)) {
+        const { year: y } = extractYearMonth(r.previousDueDate || r.paidAt);
+        if (!isNaN(y) && y > 2000) allYears.add(y);
+      }
+    });
+    if (d.createdAt) {
+      const { year: y } = extractYearMonth(d.createdAt);
+      if (!isNaN(y) && y > 2000) allYears.add(y);
+    }
+  });
+
+  return Array.from(allYears).sort((a, b) => b - a);
+}
+
+function openAnnualProfitReportModal(requestedYear) {
+  const availableYears = getAvailableProfitYears();
+  const parsedReq = parseInt(requestedYear, 10);
+  const parsedDash = parseInt(selectedProfitYear, 10);
+
+  if (!isNaN(parsedReq) && availableYears.includes(parsedReq)) {
+    selectedAnnualReportYear = parsedReq;
+  } else if (!isNaN(parsedDash) && availableYears.includes(parsedDash)) {
+    selectedAnnualReportYear = parsedDash;
+  } else {
+    selectedAnnualReportYear = availableYears[0] || new Date().getFullYear();
+  }
+
+  const yearSelect = document.getElementById('annualReportSelectYear');
+  if (yearSelect) {
+    let optionsHtml = '';
+    availableYears.forEach(y => {
+      optionsHtml += `<option value="${y}" ${y === selectedAnnualReportYear ? 'selected' : ''}>Exercício ${y}</option>`;
+    });
+    yearSelect.innerHTML = optionsHtml;
+    yearSelect.value = selectedAnnualReportYear;
+  }
+
+  renderAnnualProfitReport(selectedAnnualReportYear);
+  openModal('modalAnnualProfitReport');
+}
+
+function renderAnnualProfitReport(year) {
+  selectedAnnualReportYear = parseInt(year, 10) || new Date().getFullYear();
+  const container = document.getElementById('printableReportArea');
+  if (!container) return;
+
+  const monthNames = [
+    '', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  const monthNamesShort = [
+    '', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+  ];
+
+  const entries = getRealizedProfitEntries(selectedAnnualReportYear, 'all');
+
+  let totalAnnualProfit = 0;
+  let totalInstallmentProfit = 0;
+  let totalRenewalsProfit = 0;
+  let countInstallmentBaixas = 0;
+  let countRenewals = 0;
+
+  const monthsData = [];
+  for (let m = 1; m <= 12; m++) {
+    monthsData[m] = {
+      monthNum: m,
+      monthName: monthNames[m],
+      monthShort: monthNamesShort[m],
+      installmentProfit: 0,
+      renewalsProfit: 0,
+      totalProfit: 0,
+      countInstallments: 0,
+      countRenewals: 0,
+      totalCount: 0,
+      entries: []
+    };
+  }
+
+  entries.forEach(entry => {
+    const p = parseFloat(entry.profit) || 0;
+    const m = parseInt(entry.month, 10);
+    totalAnnualProfit += p;
+
+    if (entry.type === 'installment') {
+      totalInstallmentProfit += p;
+      countInstallmentBaixas++;
+    } else {
+      totalRenewalsProfit += p;
+      countRenewals++;
+    }
+
+    if (m >= 1 && m <= 12) {
+      monthsData[m].entries.push(entry);
+      monthsData[m].totalCount++;
+      if (entry.type === 'installment') {
+        monthsData[m].installmentProfit += p;
+        monthsData[m].countInstallments++;
+      } else {
+        monthsData[m].renewalsProfit += p;
+        monthsData[m].countRenewals++;
+      }
+      monthsData[m].totalProfit += p;
+    }
+  });
+
+  const avgMonthlyProfit = totalAnnualProfit / 12;
+  let bestMonth = null;
+  let maxMonthProfit = 0;
+
+  for (let m = 1; m <= 12; m++) {
+    if (monthsData[m].totalProfit > maxMonthProfit) {
+      maxMonthProfit = monthsData[m].totalProfit;
+      bestMonth = monthsData[m];
+    }
+  }
+
+  const debtorProfitMap = {};
+  entries.forEach(e => {
+    if (!debtorProfitMap[e.debtorId]) {
+      debtorProfitMap[e.debtorId] = {
+        name: e.debtorName,
+        profit: 0,
+        count: 0
+      };
+    }
+    debtorProfitMap[e.debtorId].profit += e.profit;
+    debtorProfitMap[e.debtorId].count++;
+  });
+
+  const topDebtors = Object.values(debtorProfitMap)
+    .sort((a, b) => b.profit - a.profit)
+    .slice(0, 5);
+
+  const pctInst = totalAnnualProfit > 0 ? ((totalInstallmentProfit / totalAnnualProfit) * 100).toFixed(1) : '0.0';
+  const pctRen = totalAnnualProfit > 0 ? ((totalRenewalsProfit / totalAnnualProfit) * 100).toFixed(1) : '0.0';
+
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const isCurrentYear = (selectedAnnualReportYear === currentYear);
+
+  let html = `
+    <!-- CABEÇALHO DO RELATÓRIO -->
+    <div style="border-bottom: 2px solid rgba(52, 211, 153, 0.4); padding-bottom: 0.85rem; margin-bottom: 1.25rem;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.35rem;">💰</span>
+            <span style="font-size: 1.15rem; font-weight: 900; color: #ffffff; letter-spacing: 0.5px;">GORDINHOS FINANCEIRO</span>
+          </div>
+          <div style="font-size: 0.82rem; color: #34d399; font-weight: 700; margin-top: 2px;">
+            DEMONSTRATIVO ANUAL DE RESULTADOS • EXERCÍCIO ${selectedAnnualReportYear}
+          </div>
+        </div>
+        <div style="text-align: right; font-size: 0.72rem; color: var(--text-muted);">
+          <div>Emissão: <strong>${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong></div>
+          <div>Critério: <strong>Competência (Vencimento da Parcela)</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARDS DE INDICADORES EXECUTIVOS (KPIS) -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.65rem; margin-bottom: 1.25rem;">
+      <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(52, 211, 153, 0.35); border-radius: 8px; padding: 0.75rem;">
+        <div style="font-size: 0.68rem; color: #34d399; font-weight: 700; text-transform: uppercase;">Lucro Total do Ano</div>
+        <div style="font-size: 1.2rem; font-weight: 900; color: #34d399; margin-top: 2px;">${formatCurrency(totalAnnualProfit)}</div>
+        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">${entries.length} operações no total</div>
+      </div>
+
+      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.75rem;">
+        <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Média Mensal</div>
+        <div style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin-top: 2px;">${formatCurrency(avgMonthlyProfit)}</div>
+        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">por mês (12 meses)</div>
+      </div>
+
+      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.75rem;">
+        <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Melhor Mês</div>
+        <div style="font-size: 1.1rem; font-weight: 800; color: #f59e0b; margin-top: 2px;">${bestMonth ? bestMonth.monthShort : '--'}</div>
+        <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">${bestMonth ? formatCurrency(bestMonth.totalProfit) : 'Sem registros'}</div>
+      </div>
+
+      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.75rem;">
+        <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Composição do Lucro</div>
+        <div style="font-size: 0.72rem; color: var(--green-primary); font-weight: 700; margin-top: 4px;">
+          Baixas: ${formatCurrency(totalInstallmentProfit)} (${pctInst}%)
+        </div>
+        <div style="font-size: 0.72rem; color: #60a5fa; font-weight: 700; margin-top: 2px;">
+          Só Juros: ${formatCurrency(totalRenewalsProfit)} (${pctRen}%)
+        </div>
+      </div>
+    </div>
+
+    <!-- TABELA CONSOLIDADA DE JANEIRO A DEZEMBRO -->
+    <div style="margin-bottom: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.4rem;">
+        <div style="font-size: 0.82rem; font-weight: 800; color: #ffffff; text-transform: uppercase; letter-spacing: 0.5px;">
+          📅 Demonstrativo Mês a Mês (${selectedAnnualReportYear})
+        </div>
+        <div style="font-size: 0.7rem; color: var(--text-muted);">
+          Valores referentes à competência de cada parcela
+        </div>
+      </div>
+
+      <div style="overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: 8px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem; text-align: left;">
+          <thead>
+            <tr style="background: #1e293b; color: #94a3b8; border-bottom: 1px solid var(--border-subtle);">
+              <th style="padding: 0.6rem 0.75rem;">Mês</th>
+              <th style="padding: 0.6rem 0.75rem; text-align: right;">Lucro Baixas</th>
+              <th style="padding: 0.6rem 0.75rem; text-align: right;">Só Juros</th>
+              <th style="padding: 0.6rem 0.75rem; text-align: right;">Lucro Total</th>
+              <th style="padding: 0.6rem 0.75rem; text-align: center;">Baixas</th>
+              <th style="padding: 0.6rem 0.75rem; text-align: right;">% Ano</th>
+              <th style="padding: 0.6rem 0.75rem; text-align: center;">Destaque</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+
+  for (let m = 1; m <= 12; m++) {
+    const dataM = monthsData[m];
+    const isCurrent = isCurrentYear && (m === currentMonth);
+    const isBest = bestMonth && (bestMonth.monthNum === m) && (bestMonth.totalProfit > 0);
+    const pct = totalAnnualProfit > 0 ? ((dataM.totalProfit / totalAnnualProfit) * 100).toFixed(1) : '0.0';
+
+    let rowBg = 'transparent';
+    if (isBest) rowBg = 'rgba(245, 158, 11, 0.08)';
+    else if (isCurrent) rowBg = 'rgba(52, 211, 153, 0.06)';
+
+    let badge = '';
+    if (isBest) {
+      badge = '<span style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 2px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">Melhor Mês ⭐</span>';
+    } else if (isCurrent) {
+      badge = '<span style="background: rgba(52, 211, 153, 0.2); color: #34d399; padding: 2px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">Mês Atual</span>';
+    } else if (dataM.totalProfit > 0) {
+      badge = '<span style="color: var(--text-muted); font-size: 0.68rem;">Realizado</span>';
+    } else {
+      badge = '<span style="color: rgba(148, 163, 184, 0.4); font-size: 0.68rem;">-</span>';
+    }
+
+    const profitColor = dataM.totalProfit > 0 ? '#34d399' : 'var(--text-muted)';
+    const profitWeight = dataM.totalProfit > 0 ? '700' : '400';
+
+    html += `
+      <tr style="background: ${rowBg}; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+        <td style="padding: 0.55rem 0.75rem; font-weight: 600; color: #ffffff;">
+          ${String(m).padStart(2, '0')} - ${dataM.monthName}
+        </td>
+        <td style="padding: 0.55rem 0.75rem; text-align: right; color: var(--text-secondary);">
+          ${formatCurrency(dataM.installmentProfit)}
+        </td>
+        <td style="padding: 0.55rem 0.75rem; text-align: right; color: #60a5fa;">
+          ${formatCurrency(dataM.renewalsProfit)}
+        </td>
+        <td style="padding: 0.55rem 0.75rem; text-align: right; color: ${profitColor}; font-weight: ${profitWeight};">
+          ${formatCurrency(dataM.totalProfit)}
+        </td>
+        <td style="padding: 0.55rem 0.75rem; text-align: center; color: var(--text-secondary);">
+          ${dataM.totalCount}
+        </td>
+        <td style="padding: 0.55rem 0.75rem; text-align: right; color: var(--text-secondary);">
+          ${pct}%
+        </td>
+        <td style="padding: 0.55rem 0.75rem; text-align: center;">
+          ${badge}
+        </td>
+      </tr>
+    `;
+  }
+
+  html += `
+          </tbody>
+          <tfoot>
+            <tr style="background: #0f172a; font-weight: 800; border-top: 2px solid rgba(52, 211, 153, 0.4);">
+              <td style="padding: 0.65rem 0.75rem; color: #ffffff;">TOTAL ANUAL</td>
+              <td style="padding: 0.65rem 0.75rem; text-align: right; color: var(--text-secondary);">${formatCurrency(totalInstallmentProfit)}</td>
+              <td style="padding: 0.65rem 0.75rem; text-align: right; color: #60a5fa;">${formatCurrency(totalRenewalsProfit)}</td>
+              <td style="padding: 0.65rem 0.75rem; text-align: right; color: #34d399; font-size: 0.88rem;">${formatCurrency(totalAnnualProfit)}</td>
+              <td style="padding: 0.65rem 0.75rem; text-align: center; color: #ffffff;">${entries.length}</td>
+              <td style="padding: 0.65rem 0.75rem; text-align: right; color: #34d399;">100.0%</td>
+              <td style="padding: 0.65rem 0.75rem; text-align: center; color: #34d399;">✅ Consolidado</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- SEÇÃO TOP 5 CLIENTES MAIS LUCRATIVOS DO ANO -->
+    ${topDebtors.length > 0 ? `
+      <div style="margin-bottom: 1.5rem;">
+        <div style="font-size: 0.82rem; font-weight: 800; color: #ffffff; text-transform: uppercase; margin-bottom: 0.5rem;">
+          🏆 Top Clientes em Lucro Realizado (${selectedAnnualReportYear})
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem;">
+          ${topDebtors.map((td, idx) => {
+            const pctCliente = totalAnnualProfit > 0 ? ((td.profit / totalAnnualProfit) * 100).toFixed(1) : '0.0';
+            return `
+              <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-weight: 700; color: #ffffff; font-size: 0.82rem;">${idx + 1}º ${escapeHTML(td.name)}</div>
+                  <div style="font-size: 0.68rem; color: var(--text-muted);">${td.count} baixas (${pctCliente}% do lucro)</div>
+                </div>
+                <div style="font-weight: 800; color: #34d399; font-size: 0.85rem;">
+                  + ${formatCurrency(td.profit)}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- SEÇÃO EXTRATO DETALHADO DOS LANÇAMENTOS DO ANO -->
+    <div>
+      <div style="font-size: 0.82rem; font-weight: 800; color: #ffffff; text-transform: uppercase; margin-bottom: 0.5rem;">
+        📜 Histórico Detalhado de Baixas no Ano (${entries.length} operações)
+      </div>
+      ${entries.length === 0 ? `
+        <div style="text-align: center; padding: 1.5rem; color: var(--text-muted); background: var(--bg-input); border-radius: 8px;">
+          Nenhum lucro registrado para o ano de ${selectedAnnualReportYear}.
+        </div>
+      ` : `
+        <div style="max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; padding-right: 4px;">
+          ${entries.map(e => {
+            const isRenewal = e.type === 'interest_only';
+            const badgeBg = isRenewal ? 'rgba(59, 130, 246, 0.15)' : 'rgba(34, 197, 94, 0.15)';
+            const badgeColor = isRenewal ? '#60a5fa' : 'var(--green-primary)';
+            const refDate = e.dueDate ? formatDateBR(e.dueDate) : formatDateBR(e.date);
+            const paidText = e.paidAt ? ` • Baixa em: ${formatDateBR(e.paidAt)}` : '';
+            return `
+              <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.76rem;">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <span style="font-weight: 700; color: #ffffff;">${escapeHTML(e.debtorName)}</span>
+                    <span style="background: ${badgeBg}; color: ${badgeColor}; border-radius: 4px; padding: 1px 5px; font-size: 0.65rem; font-weight: 700;">
+                      ${e.typeLabel}
+                    </span>
+                  </div>
+                  <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 2px;">
+                    Parcela ref.: ${refDate}${paidText}
+                  </div>
+                </div>
+                <div style="font-weight: 800; color: #34d399; font-size: 0.85rem; text-align: right;">
+                  + ${formatCurrency(e.profit)}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+
+    <!-- RODAPÉ FORMAL DO RELATÓRIO PARA IMPRESSÃO -->
+    <div style="margin-top: 1.5rem; padding-top: 0.85rem; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-muted);">
+      <div>Gordinhos Financeiro • Sistema de Gestão Financeira & Cobranças</div>
+      <div>Documento de prestação de contas emitido eletronicamente</div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function downloadAnnualProfitReportCSV(year) {
+  const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
+  const entries = getRealizedProfitEntries(selectedYear, 'all');
+
+  const monthNames = [
+    '', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+
+  let totalAnnualProfit = 0;
+  let totalInstProfit = 0;
+  let totalRenProfit = 0;
+
+  const monthsData = [];
+  for (let m = 1; m <= 12; m++) {
+    monthsData[m] = { inst: 0, ren: 0, total: 0, count: 0 };
+  }
+
+  entries.forEach(e => {
+    const p = parseFloat(e.profit) || 0;
+    const m = parseInt(e.month, 10);
+    totalAnnualProfit += p;
+    if (e.type === 'installment') totalInstProfit += p;
+    else totalRenProfit += p;
+
+    if (m >= 1 && m <= 12) {
+      if (e.type === 'installment') monthsData[m].inst += p;
+      else monthsData[m].ren += p;
+      monthsData[m].total += p;
+      monthsData[m].count++;
+    }
+  });
+
+  let csv = "\uFEFF"; // UTF-8 BOM
+  csv += `RELATÓRIO ANUAL DE LUCRO REALIZADO - EXERCÍCIO ${selectedYear}\r\n`;
+  csv += `Data de Emissão;${new Date().toLocaleString('pt-BR')}\r\n\r\n`;
+
+  csv += `=== RESUMO ANUAL ===\r\n`;
+  csv += `Lucro Total no Ano;R$ ${totalAnnualProfit.toFixed(2).replace('.', ',')}\r\n`;
+  csv += `Lucro por Baixas de Parcelas;R$ ${totalInstProfit.toFixed(2).replace('.', ',')}\r\n`;
+  csv += `Lucro por Recebimento Só Juros;R$ ${totalRenProfit.toFixed(2).replace('.', ',')}\r\n`;
+  csv += `Média Mensal;R$ ${(totalAnnualProfit / 12).toFixed(2).replace('.', ',')}\r\n`;
+  csv += `Total de Operações Baixadas;${entries.length}\r\n\r\n`;
+
+  csv += `=== DEMONSTRATIVO MÊS A MÊS (${selectedYear}) ===\r\n`;
+  csv += `Mês;Nome do Mês;Lucro Baixas (R$);Lucro Só Juros (R$);Lucro Total (R$);Qtd Operações;% do Ano\r\n`;
+
+  for (let m = 1; m <= 12; m++) {
+    const d = monthsData[m];
+    const pct = totalAnnualProfit > 0 ? ((d.total / totalAnnualProfit) * 100).toFixed(2).replace('.', ',') : '0,00';
+    csv += `${String(m).padStart(2, '0')};${monthNames[m]};${d.inst.toFixed(2).replace('.', ',')};${d.ren.toFixed(2).replace('.', ',')};${d.total.toFixed(2).replace('.', ',')};${d.count};${pct}%\r\n`;
+  }
+  csv += `TOTAL;TOTAL ANUAL;${totalInstProfit.toFixed(2).replace('.', ',')};${totalRenProfit.toFixed(2).replace('.', ',')};${totalAnnualProfit.toFixed(2).replace('.', ',')};${entries.length};100,00%\r\n\r\n`;
+
+  csv += `=== EXTRATO DETALHADO DE BAIXAS ===\r\n`;
+  csv += `Data Referência;Data Baixa;Cliente;Tipo Operação;Parcela Nº;Valor Parcela (R$);Lucro Realizado (R$)\r\n`;
+  entries.forEach(e => {
+    const ref = e.dueDate ? formatDateBR(e.dueDate) : formatDateBR(e.date);
+    const paid = e.paidAt ? formatDateBR(e.paidAt) : '-';
+    csv += `${ref};${paid};"${(e.debtorName || '').replace(/"/g, '""')}";"${e.typeLabel}";${e.installmentNumber || '-'};${(parseFloat(e.installmentAmount) || 0).toFixed(2).replace('.', ',')};${(parseFloat(e.profit) || 0).toFixed(2).replace('.', ',')}\r\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const dateStr = new Date().toISOString().split('T')[0];
+  link.href = URL.createObjectURL(blob);
+  link.setAttribute('download', `Relatorio_Lucro_Anual_${selectedYear}_${dateStr}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  showToast(`Relatório do ano ${selectedYear} baixado com sucesso em CSV!`, 'success');
+}
+
+function copyAnnualProfitReportText(year) {
+  const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
+  const entries = getRealizedProfitEntries(selectedYear, 'all');
+
+  const monthNames = [
+    '', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+
+  let totalAnnualProfit = 0;
+  let totalInstProfit = 0;
+  let totalRenProfit = 0;
+  const monthsData = [];
+  for (let m = 1; m <= 12; m++) monthsData[m] = 0;
+
+  entries.forEach(e => {
+    const p = parseFloat(e.profit) || 0;
+    const m = parseInt(e.month, 10);
+    totalAnnualProfit += p;
+    if (e.type === 'installment') totalInstProfit += p;
+    else totalRenProfit += p;
+    if (m >= 1 && m <= 12) monthsData[m] += p;
+  });
+
+  let text = `📊 *GORDINHOS FINANCEIRO - RELATÓRIO ANUAL ${selectedYear}*\n`;
+  text += `📅 Emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `💰 *LUCRO TOTAL NO ANO:* ${formatCurrency(totalAnnualProfit)}\n`;
+  text += `📈 *Média Mensal:* ${formatCurrency(totalAnnualProfit / 12)} / mês\n`;
+  text += `📦 *Total de Baixas:* ${entries.length} operações\n`;
+  text += `  • Baixas Parcelas: ${formatCurrency(totalInstProfit)}\n`;
+  text += `  • Recebimento Só Juros: ${formatCurrency(totalRenProfit)}\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `📅 *DESEMPENHO MÊS A MÊS:*\n`;
+
+  for (let m = 1; m <= 12; m++) {
+    const val = monthsData[m];
+    const bullet = val > 0 ? '🟢' : '⚪';
+    text += `${bullet} ${String(m).padStart(2, '0')} - ${monthNames[m]}: ${formatCurrency(val)}\n`;
+  }
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `✅ Gerado automaticamente pelo sistema`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Resumo anual copiado para o WhatsApp com sucesso!', 'success');
+    }).catch(() => {
+      fallbackCopyText(text);
+    });
+  } else {
+    fallbackCopyText(text);
+  }
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  ta.remove();
+  showToast('Resumo anual copiado com sucesso!', 'success');
+}
+
+function printAnnualProfitReport() {
+  window.print();
+}
+
 /**
  * Renderiza a lista de clientes idêntica à foto
  */
@@ -2525,6 +3055,52 @@ function setupEventListeners() {
   const btnOpenStatement = document.getElementById('btnOpenProfitStatement');
   if (btnOpenStatement) {
     btnOpenStatement.addEventListener('click', openProfitStatementModal);
+  }
+
+  // Relatório Executivo Anual de Lucro Realizado
+  const btnOpenProfitReport = document.getElementById('btnOpenProfitReport');
+  if (btnOpenProfitReport) {
+    btnOpenProfitReport.addEventListener('click', () => {
+      const yearToOpen = (selectedProfitYear && selectedProfitYear !== 'all') ? selectedProfitYear : new Date().getFullYear().toString();
+      openAnnualProfitReportModal(yearToOpen);
+    });
+  }
+
+  const btnExtratoToReport = document.getElementById('btnExtratoToReport');
+  if (btnExtratoToReport) {
+    btnExtratoToReport.addEventListener('click', () => {
+      closeModal('modalProfitStatement');
+      const yearToOpen = (selectedProfitYear && selectedProfitYear !== 'all') ? selectedProfitYear : new Date().getFullYear().toString();
+      openAnnualProfitReportModal(yearToOpen);
+    });
+  }
+
+  const annualReportSelectYear = document.getElementById('annualReportSelectYear');
+  if (annualReportSelectYear) {
+    annualReportSelectYear.addEventListener('change', (e) => {
+      renderAnnualProfitReport(e.target.value);
+    });
+  }
+
+  const btnDownloadAnnualReportCsv = document.getElementById('btnDownloadAnnualReportCsv');
+  if (btnDownloadAnnualReportCsv) {
+    btnDownloadAnnualReportCsv.addEventListener('click', () => {
+      downloadAnnualProfitReportCSV(selectedAnnualReportYear);
+    });
+  }
+
+  const btnPrintAnnualReport = document.getElementById('btnPrintAnnualReport');
+  if (btnPrintAnnualReport) {
+    btnPrintAnnualReport.addEventListener('click', () => {
+      printAnnualProfitReport();
+    });
+  }
+
+  const btnCopyAnnualReportText = document.getElementById('btnCopyAnnualReportText');
+  if (btnCopyAnnualReportText) {
+    btnCopyAnnualReportText.addEventListener('click', () => {
+      copyAnnualProfitReportText(selectedAnnualReportYear);
+    });
   }
 
   // Backup e Restauração
