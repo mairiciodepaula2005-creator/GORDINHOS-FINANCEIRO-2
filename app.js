@@ -392,6 +392,57 @@ function initDateInput() {
 // DADOS E PERSISTÊNCIA (COM CARREGAMENTO IMEDIATO DO FIREBASE REALTIME DATABASE)
 // ==============================================================================
 
+function normalizeDebtor(d) {
+  if (!d || typeof d !== 'object') return d;
+  if (d.installments && typeof d.installments === 'object' && !Array.isArray(d.installments)) {
+    d.installments = Object.values(d.installments);
+  }
+  if (!Array.isArray(d.installments)) {
+    d.installments = [];
+  }
+  if (d.interestPayments && typeof d.interestPayments === 'object' && !Array.isArray(d.interestPayments)) {
+    d.interestPayments = Object.values(d.interestPayments);
+  }
+  if (!Array.isArray(d.interestPayments)) {
+    d.interestPayments = [];
+  }
+  return d;
+}
+
+function extractYearMonth(dateVal) {
+  if (!dateVal) {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }
+  const str = String(dateVal).split('T')[0].trim();
+  if (str.includes('/')) {
+    const p = str.split('/');
+    if (p.length === 3) {
+      if (p[2].length === 4) {
+        return { year: parseInt(p[2], 10), month: parseInt(p[1], 10) };
+      } else if (p[0].length === 4) {
+        return { year: parseInt(p[0], 10), month: parseInt(p[1], 10) };
+      }
+    }
+  }
+  if (str.includes('-')) {
+    const p = str.split('-');
+    if (p.length >= 2) {
+      if (p[0].length === 4) {
+        return { year: parseInt(p[0], 10), month: parseInt(p[1], 10) };
+      } else if (p[2] && p[2].length === 4) {
+        return { year: parseInt(p[2], 10), month: parseInt(p[1], 10) };
+      }
+    }
+  }
+  const parsed = new Date(dateVal);
+  if (!isNaN(parsed.getTime())) {
+    return { year: parsed.getFullYear(), month: parsed.getMonth() + 1 };
+  }
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
 let isFirebaseInitialLoadComplete = false;
 
 function processIncomingFirebaseDebtors(cloudData) {
@@ -407,7 +458,7 @@ function processIncomingFirebaseDebtors(cloudData) {
     list = Object.values(cloudData).filter(d => d && typeof d === 'object' && d.name);
   }
   if (list.length > 0) {
-    debtors = list;
+    debtors = list.map(normalizeDebtor);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(debtors));
     render();
     console.log('☁️ Clientes carregados do Firebase com sucesso! Total:', debtors.length);
@@ -420,7 +471,7 @@ function loadData() {
     try {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
-        debtors = parsed.filter(d => d && typeof d === 'object' && d.name);
+        debtors = parsed.filter(d => d && typeof d === 'object' && d.name).map(normalizeDebtor);
       }
     } catch (e) {
       console.error('Erro ao ler dados salvos:', e);
@@ -901,9 +952,11 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
   const validDebtors = debtors.filter(d => d && typeof d === 'object' && d.name);
 
   validDebtors.forEach(d => {
+    normalizeDebtor(d);
     const principal = parseFloat(d.principal) || 0;
     const totalAmount = parseFloat(d.totalAmount) || 0;
-    const count = parseInt(d.installmentsCount, 10) || (d.installments ? d.installments.length : 1) || 1;
+    const instList = Array.isArray(d.installments) ? d.installments : [];
+    const count = parseInt(d.installmentsCount, 10) || (instList.length > 0 ? instList.length : 1) || 1;
     const interestRate = parseFloat(d.interestRate) || 0;
 
     // Cálculo do lucro proporcional por parcela
@@ -916,52 +969,44 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
     profitPerInstallment = Math.round(profitPerInstallment * 100) / 100;
 
     // 1. Parcelas que receberam baixa (inst.paid === true)
-    if (Array.isArray(d.installments)) {
-      d.installments.forEach(inst => {
-        if (inst && inst.paid) {
-          const dateStr = inst.paidAt || inst.dueDate || d.createdAt || getTodayString();
-          const cleanDate = String(dateStr).split('T')[0];
-          const parts = cleanDate.split('-').map(Number);
-          const y = parts[0] || new Date().getFullYear();
-          const m = parts[1] || (new Date().getMonth() + 1);
-
-          const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
-          const matchesMonth = filterMonth === 'all' || String(m) === String(filterMonth);
-
-          if (matchesYear && matchesMonth) {
-            entries.push({
-              debtorId: d.id,
-              debtorName: d.name,
-              type: 'installment',
-              typeLabel: `Baixa Parcela #${inst.number}`,
-              installmentNumber: inst.number,
-              installmentAmount: inst.amount,
-              profit: profitPerInstallment,
-              date: dateStr,
-              year: y,
-              month: m
-            });
-          }
+    instList.forEach(inst => {
+      if (inst && (inst.paid === true || inst.paid === 'true')) {
+        let thisInstProfit = profitPerInstallment;
+        if (thisInstProfit <= 0 && inst.amount && principal > 0 && count > 0) {
+          const instAmt = parseFloat(inst.amount) || 0;
+          thisInstProfit = Math.max(0, Math.round((instAmt - (principal / count)) * 100) / 100);
         }
-      });
-    }
+
+        const dateStr = inst.paidAt || inst.dueDate || d.createdAt || getTodayString();
+        const { year: y, month: m } = extractYearMonth(dateStr);
+
+        const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
+        const matchesMonth = filterMonth === 'all' || String(m) === String(filterMonth);
+
+        if (matchesYear && matchesMonth) {
+          entries.push({
+            debtorId: d.id,
+            debtorName: d.name,
+            type: 'installment',
+            typeLabel: `Baixa Parcela #${inst.number}`,
+            installmentNumber: inst.number,
+            installmentAmount: inst.amount,
+            profit: thisInstProfit,
+            date: dateStr,
+            year: y,
+            month: m
+          });
+        }
+      }
+    });
 
     // 2. Renovações de Só Juros (d.interestPayments)
-    let renewals = [];
-    if (Array.isArray(d.interestPayments)) {
-      renewals = d.interestPayments;
-    } else if (d.interestPayments && typeof d.interestPayments === 'object') {
-      renewals = Object.values(d.interestPayments);
-    }
-
+    const renewals = Array.isArray(d.interestPayments) ? d.interestPayments : [];
     renewals.forEach(ren => {
       if (ren && (ren.amount != null || ren.paidAt)) {
         const renAmount = parseFloat(ren.amount) || 0;
         const dateStr = ren.paidAt || getTodayString();
-        const cleanDate = String(dateStr).split('T')[0];
-        const parts = cleanDate.split('-').map(Number);
-        const y = parts[0] || new Date().getFullYear();
-        const m = parts[1] || (new Date().getMonth() + 1);
+        const { year: y, month: m } = extractYearMonth(dateStr);
 
         const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
         const matchesMonth = filterMonth === 'all' || String(m) === String(filterMonth);
@@ -1008,28 +1053,27 @@ function renderDashboardOverview() {
     allYears.add(currentYear);
 
     validDebtors.forEach(d => {
+      normalizeDebtor(d);
       if (Array.isArray(d.installments)) {
         d.installments.forEach(i => {
           if (i && i.paid) {
             const dt = i.paidAt || i.dueDate || d.createdAt;
             if (dt) {
-              const y = parseInt(String(dt).split('T')[0].split('-')[0], 10);
+              const { year: y } = extractYearMonth(dt);
               if (!isNaN(y) && y > 2000) allYears.add(y);
             }
           }
         });
       }
-      let renewals = [];
-      if (Array.isArray(d.interestPayments)) renewals = d.interestPayments;
-      else if (d.interestPayments && typeof d.interestPayments === 'object') renewals = Object.values(d.interestPayments);
+      const renewals = Array.isArray(d.interestPayments) ? d.interestPayments : [];
       renewals.forEach(r => {
         if (r && r.paidAt) {
-          const y = parseInt(String(r.paidAt).split('T')[0].split('-')[0], 10);
+          const { year: y } = extractYearMonth(r.paidAt);
           if (!isNaN(y) && y > 2000) allYears.add(y);
         }
       });
       if (d.createdAt) {
-        const y = parseInt(String(d.createdAt).split('T')[0].split('-')[0], 10);
+        const { year: y } = extractYearMonth(d.createdAt);
         if (!isNaN(y) && y > 2000) allYears.add(y);
       }
     });
@@ -1043,6 +1087,7 @@ function renderDashboardOverview() {
     if (yearSelect.innerHTML !== optionsHtml) {
       yearSelect.innerHTML = optionsHtml;
     }
+    yearSelect.value = selectedProfitYear;
   }
 
   const monthSelect = document.getElementById('profitFilterMonth');
@@ -1567,8 +1612,12 @@ function openInstallmentsModal(debtorId) {
 
 function toggleInstallmentPayment(installmentNumber) {
   if (!activeDebtorForAction) return;
+  normalizeDebtor(activeDebtorForAction);
 
-  const inst = activeDebtorForAction.installments.find(i => i.number === installmentNumber);
+  const debtor = debtors.find(d => d.id === activeDebtorForAction.id) || activeDebtorForAction;
+  normalizeDebtor(debtor);
+
+  const inst = debtor.installments.find(i => i.number === installmentNumber);
   if (!inst) return;
 
   if (inst.paid) {
@@ -1583,13 +1632,18 @@ function toggleInstallmentPayment(installmentNumber) {
 
   saveData();
   render();
-  openInstallmentsModal(activeDebtorForAction.id);
+  openInstallmentsModal(debtor.id);
+  triggerGoogleSheetsAutoSync();
 }
 
 function quickPayNextInstallment() {
   if (!activeDebtorForAction) return;
+  normalizeDebtor(activeDebtorForAction);
 
-  const nextUnpaid = activeDebtorForAction.installments.find(i => !i.paid);
+  const debtor = debtors.find(d => d.id === activeDebtorForAction.id) || activeDebtorForAction;
+  normalizeDebtor(debtor);
+
+  const nextUnpaid = debtor.installments.find(i => !i.paid);
   if (!nextUnpaid) {
     showToast('Todas as parcelas já foram pagas!', 'info');
     return;
@@ -1602,11 +1656,16 @@ function quickPayNextInstallment() {
   render();
   closeModal('modalActionSheet');
   showToast(`Recebimento da parcela #${nextUnpaid.number} confirmado!`, 'success');
+  triggerGoogleSheetsAutoSync();
 }
 
 function payInterestOnlyNextInstallment() {
   if (!activeDebtorForAction) return;
-  const debtor = activeDebtorForAction;
+  normalizeDebtor(activeDebtorForAction);
+
+  const debtor = debtors.find(d => d.id === activeDebtorForAction.id) || activeDebtorForAction;
+  normalizeDebtor(debtor);
+
   const nextUnpaid = debtor.installments ? debtor.installments.find(i => !i.paid) : null;
   if (!nextUnpaid) {
     showToast('Todas as parcelas já foram quitadas!', 'info');
@@ -1647,11 +1706,16 @@ function payInterestOnlyNextInstallment() {
   render();
   closeModal('modalActionSheet');
   showToast(`Juros de ${formatCurrency(minInterest)} recebidos! Vencimento adiado para ${formatDateBR(newDueDate)}.`, 'success');
+  triggerGoogleSheetsAutoSync();
 }
 
 function payInterestOnlyForInstallment(installmentNumber) {
   if (!activeDebtorForAction) return;
-  const debtor = activeDebtorForAction;
+  normalizeDebtor(activeDebtorForAction);
+
+  const debtor = debtors.find(d => d.id === activeDebtorForAction.id) || activeDebtorForAction;
+  normalizeDebtor(debtor);
+
   const inst = debtor.installments ? debtor.installments.find(i => i.number === installmentNumber) : null;
   if (!inst) return;
   if (inst.paid) {
@@ -1691,6 +1755,7 @@ function payInterestOnlyForInstallment(installmentNumber) {
   render();
   openInstallmentsModal(debtor.id);
   showToast(`Juros de ${formatCurrency(minInterest)} recebidos! Parcela renovada para ${formatDateBR(newDueDate)}.`, 'success');
+  triggerGoogleSheetsAutoSync();
 }
 
 function deleteActiveDebtor() {
@@ -1864,6 +1929,389 @@ function switchTab(tabId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// ====================================================================
+// INTEGRAÇÃO COM PLANILHA NO GOOGLE DRIVE / GOOGLE SHEETS
+// ====================================================================
+const GOOGLE_SHEETS_URL_KEY = 'gordinhos_sheets_webhook_url';
+const GOOGLE_SHEETS_AUTOSYNC_KEY = 'gordinhos_sheets_autosync';
+
+function initGoogleSheetsSettings() {
+  const inputUrl = document.getElementById('googleSheetWebhookUrl');
+  const chkAuto = document.getElementById('chkAutoSyncGoogleSheets');
+  const badge = document.getElementById('googleSheetsSyncStatusBadge');
+  
+  const savedUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY) || '';
+  const savedAuto = localStorage.getItem(GOOGLE_SHEETS_AUTOSYNC_KEY) === 'true';
+
+  if (inputUrl) inputUrl.value = savedUrl;
+  if (chkAuto) chkAuto.checked = savedAuto;
+
+  if (badge) {
+    if (savedUrl && savedUrl.startsWith('http')) {
+      badge.textContent = '🟢 Conectado ao Google Sheets';
+      badge.style.color = '#34d399';
+    } else {
+      badge.textContent = '⚪ Não conectado';
+      badge.style.color = 'var(--text-muted)';
+    }
+  }
+}
+
+function saveGoogleSheetsUrl() {
+  const inputUrl = document.getElementById('googleSheetWebhookUrl');
+  if (!inputUrl) return;
+  const url = inputUrl.value.trim();
+  localStorage.setItem(GOOGLE_SHEETS_URL_KEY, url);
+
+  const badge = document.getElementById('googleSheetsSyncStatusBadge');
+  if (badge) {
+    if (url && url.startsWith('http')) {
+      badge.textContent = '🟢 Conectado ao Google Sheets';
+      badge.style.color = '#34d399';
+      showToast('URL do Google Sheets salva com sucesso!', 'success');
+    } else {
+      badge.textContent = '⚪ Não conectado';
+      badge.style.color = 'var(--text-muted)';
+      showToast('URL do Google Sheets removida.', 'info');
+    }
+  }
+}
+
+function getGoogleSheetsExportPayload() {
+  const validDebtors = debtors.filter(d => d && typeof d === 'object' && d.name).map(normalizeDebtor);
+  
+  let totalPrincipal = 0;
+  let totalReceivable = 0;
+  let activeClientsCount = 0;
+  let overdueClientsCount = 0;
+
+  const serializedDebtors = [];
+  const allInstallments = [];
+  const allInterestPayments = [];
+
+  validDebtors.forEach(d => {
+    const statusInfo = evaluateDebtorStatus(d);
+    totalPrincipal += d.principal || 0;
+    totalReceivable += statusInfo.remainingBalance;
+    if (statusInfo.status === 'overdue') overdueClientsCount++;
+    else activeClientsCount++;
+
+    const instList = Array.isArray(d.installments) ? d.installments : [];
+    const count = parseInt(d.installmentsCount, 10) || (instList.length > 0 ? instList.length : 1) || 1;
+    const paidCount = instList.filter(i => i && i.paid).length;
+
+    let profitPerInst = 0;
+    if (d.totalAmount > d.principal && count > 0) {
+      profitPerInst = (d.totalAmount - d.principal) / count;
+    } else if (d.principal > 0 && d.interestRate > 0) {
+      profitPerInst = d.isDaily ? (d.principal * (d.interestRate / 100)) / count : (d.principal * (d.interestRate / 100));
+    }
+    profitPerInst = Math.round(profitPerInst * 100) / 100;
+
+    let debtorRealizedProfit = 0;
+    instList.forEach(inst => {
+      if (inst && inst.paid) {
+        debtorRealizedProfit += profitPerInst;
+      }
+      allInstallments.push({
+        debtorId: d.id,
+        debtorName: d.name,
+        number: inst.number,
+        amount: inst.amount,
+        dueDate: inst.dueDate,
+        paid: !!inst.paid,
+        paidAt: inst.paidAt || '',
+        profit: profitPerInst
+      });
+    });
+
+    const renewals = Array.isArray(d.interestPayments) ? d.interestPayments : [];
+    renewals.forEach(r => {
+      const amt = parseFloat(r.amount) || 0;
+      debtorRealizedProfit += amt;
+      allInterestPayments.push({
+        debtorId: d.id,
+        debtorName: d.name,
+        amount: amt,
+        paidAt: r.paidAt || '',
+        previousDueDate: r.previousDueDate || '',
+        newDueDate: r.newDueDate || ''
+      });
+    });
+
+    serializedDebtors.push({
+      id: d.id,
+      name: d.name,
+      cpf: d.cpf || '',
+      phone: d.phone || '',
+      principal: d.principal || 0,
+      interestRate: d.interestRate || 0,
+      totalAmount: d.totalAmount || 0,
+      remainingBalance: statusInfo.remainingBalance,
+      expectedProfit: Math.max(0, (d.totalAmount || 0) - (d.principal || 0)),
+      realizedProfit: debtorRealizedProfit,
+      paidInstallmentsCount: paidCount,
+      totalInstallmentsCount: count,
+      statusLabel: statusInfo.statusLabel || '',
+      createdAt: d.createdAt || '',
+      notes: d.notes || ''
+    });
+  });
+
+  const allProfitEntries = getRealizedProfitEntries('all', 'all');
+  const totalRealizedProfit = allProfitEntries.reduce((acc, cur) => acc + (cur.profit || 0), 0);
+
+  return {
+    summary: {
+      totalPrincipal,
+      totalReceivable,
+      totalRealizedProfit,
+      activeClientsCount,
+      overdueClientsCount,
+      updatedAt: new Date().toISOString()
+    },
+    debtors: serializedDebtors,
+    installments: allInstallments,
+    interestPayments: allInterestPayments
+  };
+}
+
+async function syncWithGoogleSheets(isSilent = false) {
+  const webhookUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY);
+  if (!webhookUrl || !webhookUrl.startsWith('http')) {
+    if (!isSilent) {
+      showToast('Configure a URL do Webhook do Google Apps Script antes de sincronizar!', 'warning');
+      openModal('modalGoogleSheetsHelp');
+    }
+    return;
+  }
+
+  const btn = document.getElementById('btnSyncGoogleSheets');
+  if (btn && !isSilent) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳ Sincronizando com Google Sheets...</span>';
+  }
+
+  try {
+    const payload = getGoogleSheetsExportPayload();
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload),
+      mode: 'no-cors'
+    });
+
+    const badge = document.getElementById('googleSheetsSyncStatusBadge');
+    if (badge) {
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      badge.textContent = `🟢 Sincronizado hoje às ${timeStr}`;
+      badge.style.color = '#34d399';
+    }
+
+    if (!isSilent) {
+      showToast('Planilha no Google Drive sincronizada com sucesso!', 'success');
+    }
+  } catch (err) {
+    console.error('Erro na sincronização Google Sheets:', err);
+    if (!isSilent) {
+      showToast('Erro ao sincronizar com Google Sheets: ' + err.message, 'error');
+    }
+  } finally {
+    if (btn && !isSilent) {
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+        <span>Sincronizar com Google Sheets Agora</span>
+      `;
+    }
+  }
+}
+
+function triggerGoogleSheetsAutoSync() {
+  const isAuto = localStorage.getItem(GOOGLE_SHEETS_AUTOSYNC_KEY) === 'true';
+  const webhookUrl = localStorage.getItem(GOOGLE_SHEETS_URL_KEY);
+  if (isAuto && webhookUrl && webhookUrl.startsWith('http')) {
+    syncWithGoogleSheets(true);
+  }
+}
+
+function exportSpreadsheetCSV() {
+  const payload = getGoogleSheetsExportPayload();
+  const debtors = payload.debtors;
+  const installments = payload.installments;
+
+  let csvContent = "\uFEFF"; // UTF-8 BOM
+
+  csvContent += "=== RESUMO FINANCEIRO GERAL ===\r\n";
+  csvContent += `Total Emprestado (Principal);${(payload.summary.totalPrincipal).toFixed(2).replace('.', ',')}\r\n`;
+  csvContent += `Total a Receber (Saldo Pendente);${(payload.summary.totalReceivable).toFixed(2).replace('.', ',')}\r\n`;
+  csvContent += `Total Lucro Realizado;${(payload.summary.totalRealizedProfit).toFixed(2).replace('.', ',')}\r\n`;
+  csvContent += `Clientes Ativos;${payload.summary.activeClientsCount}\r\n`;
+  csvContent += `Clientes em Atraso;${payload.summary.overdueClientsCount}\r\n`;
+  csvContent += `Data de Geração;${new Date().toLocaleString('pt-BR')}\r\n\r\n`;
+
+  csvContent += "=== CLIENTES E EMPRÉSTIMOS ===\r\n";
+  csvContent += "Nome;CPF;Telefone;Valor Emprestado;Taxa (%);Total a Pagar;Saldo Restante;Lucro Previsto;Lucro Realizado;Parcelas Pagas;Total Parcelas;Status;Data Cadastro;Observações\r\n";
+  
+  debtors.forEach(d => {
+    const row = [
+      `"${(d.name || '').replace(/"/g, '""')}"`,
+      `"${(d.cpf || '').replace(/"/g, '""')}"`,
+      `"${(d.phone || '').replace(/"/g, '""')}"`,
+      `"${(d.principal || 0).toFixed(2).replace('.', ',')}"`,
+      `"${(d.interestRate || 0).toFixed(2).replace('.', ',')}"`,
+      `"${(d.totalAmount || 0).toFixed(2).replace('.', ',')}"`,
+      `"${(d.remainingBalance || 0).toFixed(2).replace('.', ',')}"`,
+      `"${(d.expectedProfit || 0).toFixed(2).replace('.', ',')}"`,
+      `"${(d.realizedProfit || 0).toFixed(2).replace('.', ',')}"`,
+      d.paidInstallmentsCount,
+      d.totalInstallmentsCount,
+      `"${d.statusLabel || ''}"`,
+      `"${d.createdAt || ''}"`,
+      `"${(d.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`
+    ];
+    csvContent += row.join(';') + "\r\n";
+  });
+
+  csvContent += "\r\n=== PARCELAS E HISTÓRICO DE BAIXAS ===\r\n";
+  csvContent += "Cliente;Parcela Nº;Valor Parcela;Vencimento;Status;Data da Baixa/Pagamento;Lucro da Parcela\r\n";
+
+  installments.forEach(inst => {
+    const row = [
+      `"${(inst.debtorName || '').replace(/"/g, '""')}"`,
+      inst.number,
+      `"${(inst.amount || 0).toFixed(2).replace('.', ',')}"`,
+      `"${inst.dueDate || ''}"`,
+      inst.paid ? "PAGO" : "PENDENTE",
+      `"${inst.paidAt || '-'}"`,
+      `"${(inst.profit || 0).toFixed(2).replace('.', ',')}"`
+    ];
+    csvContent += row.join(';') + "\r\n";
+  });
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const todayStr = new Date().toISOString().split('T')[0];
+  a.href = url;
+  a.download = `Planilha_Financeira_GoogleDrive_${todayStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Planilha CSV baixada com sucesso! Pronta para Google Drive e Excel.', 'success');
+}
+
+const APPS_SCRIPT_SOURCE_CODE = `function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Nenhum dado recebido." })).setMimeType(ContentService.MimeType.JSON);
+    }
+    var payload = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 1. Resumo Financeiro
+    var sheetResumo = ss.getSheetByName("Resumo Financeiro") || ss.insertSheet("Resumo Financeiro", 0);
+    sheetResumo.clear();
+    sheetResumo.getRange(1, 1, 1, 2).setValues([["MÉTRICA", "VALOR"]]).setBackground("#065F46").setFontColor("#FFFFFF").setFontWeight("bold");
+    var resumoData = [
+      ["Total Emprestado (Principal)", payload.summary ? payload.summary.totalPrincipal : 0],
+      ["Total a Receber (Saldo Pendente)", payload.summary ? payload.summary.totalReceivable : 0],
+      ["Total de Lucro Realizado", payload.summary ? payload.summary.totalRealizedProfit : 0],
+      ["Clientes Ativos", payload.summary ? payload.summary.activeClientsCount : 0],
+      ["Clientes em Atraso", payload.summary ? payload.summary.overdueClientsCount : 0],
+      ["Última Atualização", new Date().toLocaleString("pt-BR")]
+    ];
+    sheetResumo.getRange(2, 1, resumoData.length, 2).setValues(resumoData);
+    sheetResumo.getRange(2, 2, 3, 1).setNumberFormat("R$ #,##0.00");
+    sheetResumo.autoResizeColumns(1, 2);
+
+    // 2. Clientes e Empréstimos
+    var sheetClientes = ss.getSheetByName("Clientes") || ss.insertSheet("Clientes", 1);
+    sheetClientes.clear();
+    var headersClientes = ["Nome", "CPF", "Telefone", "Valor Emprestado", "Taxa (%)", "Total a Pagar", "Saldo Restante", "Lucro Previsto", "Lucro Realizado", "Parcelas Pagas", "Total Parcelas", "Status", "Data de Início", "Observações"];
+    sheetClientes.appendRow(headersClientes);
+    sheetClientes.getRange(1, 1, 1, headersClientes.length).setBackground("#059669").setFontColor("#FFFFFF").setFontWeight("bold");
+
+    if (payload.debtors && payload.debtors.length > 0) {
+      var rowsClientes = [];
+      payload.debtors.forEach(function(d) {
+        rowsClientes.push([
+          d.name || "", d.cpf || "", d.phone || "",
+          parseFloat(d.principal) || 0, parseFloat(d.interestRate) || 0, parseFloat(d.totalAmount) || 0,
+          parseFloat(d.remainingBalance) || 0, parseFloat(d.expectedProfit) || 0, parseFloat(d.realizedProfit) || 0,
+          parseInt(d.paidInstallmentsCount, 10) || 0, parseInt(d.totalInstallmentsCount, 10) || 0,
+          d.statusLabel || "", d.createdAt || "", d.notes || ""
+        ]);
+      });
+      sheetClientes.getRange(2, 1, rowsClientes.length, headersClientes.length).setValues(rowsClientes);
+      sheetClientes.getRange(2, 4, rowsClientes.length, 1).setNumberFormat("R$ #,##0.00");
+      sheetClientes.getRange(2, 6, rowsClientes.length, 4).setNumberFormat("R$ #,##0.00");
+    }
+    sheetClientes.autoResizeColumns(1, headersClientes.length);
+
+    // 3. Parcelas e Baixas
+    var sheetParcelas = ss.getSheetByName("Parcelas") || ss.insertSheet("Parcelas", 2);
+    sheetParcelas.clear();
+    var headersParcelas = ["Cliente", "Parcela Nº", "Valor da Parcela", "Data de Vencimento", "Status da Parcela", "Data da Baixa / Pagamento", "Lucro da Parcela"];
+    sheetParcelas.appendRow(headersParcelas);
+    sheetParcelas.getRange(1, 1, 1, headersParcelas.length).setBackground("#10B981").setFontColor("#FFFFFF").setFontWeight("bold");
+
+    if (payload.installments && payload.installments.length > 0) {
+      var rowsParcelas = [];
+      payload.installments.forEach(function(inst) {
+        rowsParcelas.push([
+          inst.debtorName || "", inst.number || 1, parseFloat(inst.amount) || 0,
+          inst.dueDate || "", inst.paid ? "PAGO" : "PENDENTE", inst.paidAt || "-", parseFloat(inst.profit) || 0
+        ]);
+      });
+      sheetParcelas.getRange(2, 1, rowsParcelas.length, headersParcelas.length).setValues(rowsParcelas);
+      sheetParcelas.getRange(2, 3, rowsParcelas.length, 1).setNumberFormat("R$ #,##0.00");
+      sheetParcelas.getRange(2, 7, rowsParcelas.length, 1).setNumberFormat("R$ #,##0.00");
+    }
+    sheetParcelas.autoResizeColumns(1, headersParcelas.length);
+
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", timestamp: new Date().toISOString() })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput("Sincronizador Google Sheets Ativo. Conexão OK!").setMimeType(ContentService.MimeType.TEXT);
+}`;
+
+function copyGoogleAppsScriptCode() {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(APPS_SCRIPT_SOURCE_CODE).then(() => {
+      showToast('Código copiado com sucesso! Agora cole no Apps Script da sua Planilha.', 'success');
+    }).catch(() => {
+      fallbackCopyCode();
+    });
+  } else {
+    fallbackCopyCode();
+  }
+}
+
+function fallbackCopyCode() {
+  const ta = document.createElement('textarea');
+  ta.value = APPS_SCRIPT_SOURCE_CODE;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('Código copiado para a área de transferência!', 'success');
+  } catch (e) {
+    prompt('Copie o código abaixo manualmente (Ctrl+C):', APPS_SCRIPT_SOURCE_CODE);
+  }
+  document.body.removeChild(ta);
+}
+
 function setupEventListeners() {
   // Botão Verde "+ Novo Cliente"
   document.getElementById('btnOpenNewClient').addEventListener('click', () => {
@@ -2033,5 +2481,46 @@ function setupEventListeners() {
       showToast('Atualizando dados do Firebase Realtime Database...', 'info');
       loadData();
     });
+  }
+
+  // Integração com Planilha Google Drive / Sheets
+  initGoogleSheetsSettings();
+
+  const btnSaveSheetsUrl = document.getElementById('btnSaveGoogleSheetUrl');
+  if (btnSaveSheetsUrl) {
+    btnSaveSheetsUrl.addEventListener('click', saveGoogleSheetsUrl);
+  }
+
+  const chkAutoSheets = document.getElementById('chkAutoSyncGoogleSheets');
+  if (chkAutoSheets) {
+    chkAutoSheets.addEventListener('change', (e) => {
+      localStorage.setItem(GOOGLE_SHEETS_AUTOSYNC_KEY, e.target.checked);
+      if (e.target.checked) {
+        showToast('Sincronização automática com Google Sheets ativada!', 'success');
+        triggerGoogleSheetsAutoSync();
+      } else {
+        showToast('Sincronização automática desativada.', 'info');
+      }
+    });
+  }
+
+  const btnSyncSheets = document.getElementById('btnSyncGoogleSheets');
+  if (btnSyncSheets) {
+    btnSyncSheets.addEventListener('click', () => syncWithGoogleSheets(false));
+  }
+
+  const btnExportCsv = document.getElementById('btnExportCSV');
+  if (btnExportCsv) {
+    btnExportCsv.addEventListener('click', exportSpreadsheetCSV);
+  }
+
+  const btnHelpSheets = document.getElementById('btnHelpGoogleSheets');
+  if (btnHelpSheets) {
+    btnHelpSheets.addEventListener('click', () => openModal('modalGoogleSheetsHelp'));
+  }
+
+  const btnCopyScript = document.getElementById('btnCopyAppsScriptCode');
+  if (btnCopyScript) {
+    btnCopyScript.addEventListener('click', copyGoogleAppsScriptCode);
   }
 }
