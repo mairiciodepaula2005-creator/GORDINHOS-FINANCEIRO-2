@@ -1792,6 +1792,396 @@ function fallbackCopyText(text) {
   showToast('Resumo anual copiado com sucesso!', 'success');
 }
 
+function getAnnualReportPdfTemplateHtml(year) {
+  const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
+  const entries = getRealizedProfitEntries(selectedYear, 'all');
+
+  const monthNames = [
+    '', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  const monthNamesShort = [
+    '', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+  ];
+
+  let totalAnnualProfit = 0;
+  let totalInstallmentProfit = 0;
+  let totalRenewalsProfit = 0;
+  let countInstallmentBaixas = 0;
+  let countRenewals = 0;
+
+  const monthsData = [];
+  for (let m = 1; m <= 12; m++) {
+    monthsData[m] = {
+      monthNum: m,
+      monthName: monthNames[m],
+      monthShort: monthNamesShort[m],
+      installmentProfit: 0,
+      renewalsProfit: 0,
+      totalProfit: 0,
+      countInstallments: 0,
+      countRenewals: 0,
+      totalCount: 0,
+      entries: []
+    };
+  }
+
+  entries.forEach(entry => {
+    const p = parseFloat(entry.profit) || 0;
+    const m = parseInt(entry.month, 10);
+    totalAnnualProfit += p;
+
+    if (entry.type === 'installment') {
+      totalInstallmentProfit += p;
+      countInstallmentBaixas++;
+    } else {
+      totalRenewalsProfit += p;
+      countRenewals++;
+    }
+
+    if (m >= 1 && m <= 12) {
+      monthsData[m].entries.push(entry);
+      monthsData[m].totalCount++;
+      if (entry.type === 'installment') {
+        monthsData[m].installmentProfit += p;
+        monthsData[m].countInstallments++;
+      } else {
+        monthsData[m].renewalsProfit += p;
+        monthsData[m].countRenewals++;
+      }
+      monthsData[m].totalProfit += p;
+    }
+  });
+
+  const avgMonthlyProfit = totalAnnualProfit / 12;
+  let bestMonth = null;
+  let maxMonthProfit = 0;
+
+  for (let m = 1; m <= 12; m++) {
+    if (monthsData[m].totalProfit > maxMonthProfit) {
+      maxMonthProfit = monthsData[m].totalProfit;
+      bestMonth = monthsData[m];
+    }
+  }
+
+  const debtorProfitMap = {};
+  entries.forEach(e => {
+    if (!debtorProfitMap[e.debtorId]) {
+      debtorProfitMap[e.debtorId] = {
+        name: e.debtorName,
+        profit: 0,
+        count: 0
+      };
+    }
+    debtorProfitMap[e.debtorId].profit += e.profit;
+    debtorProfitMap[e.debtorId].count++;
+  });
+
+  const topDebtors = Object.values(debtorProfitMap)
+    .sort((a, b) => b.profit - a.profit)
+    .slice(0, 5);
+
+  const pctInst = totalAnnualProfit > 0 ? ((totalInstallmentProfit / totalAnnualProfit) * 100).toFixed(1) : '0.0';
+  const pctRen = totalAnnualProfit > 0 ? ((totalRenewalsProfit / totalAnnualProfit) * 100).toFixed(1) : '0.0';
+
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const isCurrentYear = (selectedYear === currentYear);
+
+  let html = `
+    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #0f172a; background: #ffffff; line-height: 1.4; padding: 10px;">
+      
+      <!-- CABEÇALHO FORMAL -->
+      <div style="border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <div style="font-size: 18px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px;">
+              💰 GORDINHOS FINANCEIRO
+            </div>
+            <div style="font-size: 12px; font-weight: 700; color: #059669; margin-top: 2px; text-transform: uppercase;">
+              Demonstrativo Anual de Lucro Realizado • Exercício ${selectedYear}
+            </div>
+          </div>
+          <div style="text-align: right; font-size: 10px; color: #64748b;">
+            <div>Emissão: <strong>${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong></div>
+            <div>Critério: <strong>Competência (Vencimento da Parcela)</strong></div>
+            <div>Status da Base: <strong>${entries.length} operações baixadas</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARDS DE INDICADORES (KPIS) -->
+      <div style="display: flex; gap: 10px; margin-bottom: 18px;">
+        <div style="flex: 1; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 10px;">
+          <div style="font-size: 9px; color: #059669; font-weight: 800; text-transform: uppercase;">Lucro Total no Ano</div>
+          <div style="font-size: 16px; font-weight: 900; color: #065f46; margin-top: 3px;">${formatCurrency(totalAnnualProfit)}</div>
+          <div style="font-size: 9px; color: #047857; margin-top: 2px;">${entries.length} operações no total</div>
+        </div>
+
+        <div style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;">
+          <div style="font-size: 9px; color: #64748b; font-weight: 800; text-transform: uppercase;">Média Mensal</div>
+          <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 3px;">${formatCurrency(avgMonthlyProfit)}</div>
+          <div style="font-size: 9px; color: #64748b; margin-top: 2px;">por mês (12 meses)</div>
+        </div>
+
+        <div style="flex: 1; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px;">
+          <div style="font-size: 9px; color: #b45309; font-weight: 800; text-transform: uppercase;">Melhor Mês</div>
+          <div style="font-size: 15px; font-weight: 800; color: #92400e; margin-top: 3px;">${bestMonth ? bestMonth.monthShort : '--'}</div>
+          <div style="font-size: 9px; color: #b45309; margin-top: 2px;">${bestMonth ? formatCurrency(bestMonth.totalProfit) : 'Sem registros'}</div>
+        </div>
+
+        <div style="flex: 1.2; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;">
+          <div style="font-size: 9px; color: #64748b; font-weight: 800; text-transform: uppercase;">Origem do Lucro</div>
+          <div style="font-size: 10px; color: #059669; font-weight: 700; margin-top: 4px;">
+            Baixas: ${formatCurrency(totalInstallmentProfit)} (${pctInst}%)
+          </div>
+          <div style="font-size: 10px; color: #2563eb; font-weight: 700; margin-top: 2px;">
+            Só Juros: ${formatCurrency(totalRenewalsProfit)} (${pctRen}%)
+          </div>
+        </div>
+      </div>
+
+      <!-- TABELA CONSOLIDADA 12 MESES -->
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">
+          📅 Demonstrativo Mês a Mês (${selectedYear})
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 10px; text-align: left; border: 1px solid #cbd5e1;">
+          <thead>
+            <tr style="background: #f1f5f9; color: #334155; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 6px 8px; font-weight: 800;">Mês</th>
+              <th style="padding: 6px 8px; text-align: right; font-weight: 800;">Lucro Baixas</th>
+              <th style="padding: 6px 8px; text-align: right; font-weight: 800;">Só Juros</th>
+              <th style="padding: 6px 8px; text-align: right; font-weight: 800;">Lucro Total</th>
+              <th style="padding: 6px 8px; text-align: center; font-weight: 800;">Qtd Baixas</th>
+              <th style="padding: 6px 8px; text-align: right; font-weight: 800;">% Ano</th>
+              <th style="padding: 6px 8px; text-align: center; font-weight: 800;">Destaque</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+
+  for (let m = 1; m <= 12; m++) {
+    const dataM = monthsData[m];
+    const isCurrent = isCurrentYear && (m === currentMonth);
+    const isBest = bestMonth && (bestMonth.monthNum === m) && (bestMonth.totalProfit > 0);
+    const pct = totalAnnualProfit > 0 ? ((dataM.totalProfit / totalAnnualProfit) * 100).toFixed(1) : '0.0';
+
+    let rowBg = (m % 2 === 0) ? '#f8fafc' : '#ffffff';
+    if (isBest) rowBg = '#fef3c7';
+    else if (isCurrent) rowBg = '#f0fdf4';
+
+    let badge = '-';
+    if (isBest) {
+      badge = '<strong style="color: #b45309;">Melhor Mês ⭐</strong>';
+    } else if (isCurrent) {
+      badge = '<strong style="color: #059669;">Mês Atual</strong>';
+    } else if (dataM.totalProfit > 0) {
+      badge = '<span style="color: #64748b;">Realizado</span>';
+    }
+
+    const profitColor = dataM.totalProfit > 0 ? '#059669' : '#94a3b8';
+    const profitWeight = dataM.totalProfit > 0 ? '700' : '400';
+
+    html += `
+      <tr style="background: ${rowBg}; border-bottom: 1px solid #e2e8f0; page-break-inside: avoid;">
+        <td style="padding: 5px 8px; font-weight: 600; color: #0f172a;">
+          ${String(m).padStart(2, '0')} - ${dataM.monthName}
+        </td>
+        <td style="padding: 5px 8px; text-align: right; color: #334155;">
+          ${formatCurrency(dataM.installmentProfit)}
+        </td>
+        <td style="padding: 5px 8px; text-align: right; color: #2563eb;">
+          ${formatCurrency(dataM.renewalsProfit)}
+        </td>
+        <td style="padding: 5px 8px; text-align: right; color: ${profitColor}; font-weight: ${profitWeight};">
+          ${formatCurrency(dataM.totalProfit)}
+        </td>
+        <td style="padding: 5px 8px; text-align: center; color: #475569;">
+          ${dataM.totalCount}
+        </td>
+        <td style="padding: 5px 8px; text-align: right; color: #475569;">
+          ${pct}%
+        </td>
+        <td style="padding: 5px 8px; text-align: center; font-size: 9px;">
+          ${badge}
+        </td>
+      </tr>
+    `;
+  }
+
+  html += `
+          </tbody>
+          <tfoot>
+            <tr style="background: #0f172a; color: #ffffff; font-weight: 800; border-top: 2px solid #059669;">
+              <td style="padding: 7px 8px;">TOTAL ANUAL</td>
+              <td style="padding: 7px 8px; text-align: right; color: #cbd5e1;">${formatCurrency(totalInstallmentProfit)}</td>
+              <td style="padding: 7px 8px; text-align: right; color: #93c5fd;">${formatCurrency(totalRenewalsProfit)}</td>
+              <td style="padding: 7px 8px; text-align: right; color: #34d399; font-size: 11px;">${formatCurrency(totalAnnualProfit)}</td>
+              <td style="padding: 7px 8px; text-align: center; color: #ffffff;">${entries.length}</td>
+              <td style="padding: 7px 8px; text-align: right; color: #34d399;">100.0%</td>
+              <td style="padding: 7px 8px; text-align: center; color: #34d399;">Consolidado</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- TOP CLIENTES MAIS LUCRATIVOS -->
+      ${topDebtors.length > 0 ? `
+        <div style="margin-bottom: 20px; page-break-inside: avoid;">
+          <div style="font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 6px;">
+            🏆 Top Clientes em Lucro Realizado (${selectedYear})
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            ${topDebtors.map((td, idx) => {
+              const pctCliente = totalAnnualProfit > 0 ? ((td.profit / totalAnnualProfit) * 100).toFixed(1) : '0.0';
+              return `
+                <div style="flex: 1; min-width: 130px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px;">
+                  <div style="font-weight: 700; color: #0f172a; font-size: 10px;">${idx + 1}º ${escapeHTML(td.name)}</div>
+                  <div style="font-size: 8px; color: #64748b; margin-top: 1px;">${td.count} baixas (${pctCliente}%)</div>
+                  <div style="font-weight: 800; color: #059669; font-size: 11px; margin-top: 2px;">+ ${formatCurrency(td.profit)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- HISTÓRICO DETALHADO DE BAIXAS NO ANO -->
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 6px;">
+          📜 Histórico Detalhado de Baixas no Ano (${entries.length} operações)
+        </div>
+        ${entries.length === 0 ? `
+          <div style="text-align: center; padding: 16px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 10px;">
+            Nenhum lucro registrado para o ano de ${selectedYear}.
+          </div>
+        ` : `
+          <table style="width: 100%; border-collapse: collapse; font-size: 9.5px; border: 1px solid #cbd5e1;">
+            <thead>
+              <tr style="background: #f1f5f9; color: #334155; border-bottom: 1px solid #cbd5e1;">
+                <th style="padding: 5px 6px; text-align: left;">Cliente</th>
+                <th style="padding: 5px 6px; text-align: left;">Tipo</th>
+                <th style="padding: 5px 6px; text-align: center;">Ref. / Vencimento</th>
+                <th style="padding: 5px 6px; text-align: center;">Data da Baixa</th>
+                <th style="padding: 5px 6px; text-align: right;">Valor Parcela</th>
+                <th style="padding: 5px 6px; text-align: right;">Lucro Realizado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${entries.map((e, idx) => {
+                const isRenewal = e.type === 'interest_only';
+                const refDate = e.dueDate ? formatDateBR(e.dueDate) : formatDateBR(e.date);
+                const paidText = e.paidAt ? formatDateBR(e.paidAt) : '-';
+                const rowBg = (idx % 2 === 0) ? '#ffffff' : '#f8fafc';
+                return `
+                  <tr style="background: ${rowBg}; border-bottom: 1px solid #e2e8f0; page-break-inside: avoid;">
+                    <td style="padding: 4px 6px; font-weight: 600; color: #0f172a;">${escapeHTML(e.debtorName)}</td>
+                    <td style="padding: 4px 6px; color: ${isRenewal ? '#2563eb' : '#059669'}; font-weight: 700;">${e.typeLabel}</td>
+                    <td style="padding: 4px 6px; text-align: center; color: #475569;">${refDate}</td>
+                    <td style="padding: 4px 6px; text-align: center; color: #475569;">${paidText}</td>
+                    <td style="padding: 4px 6px; text-align: right; color: #475569;">${formatCurrency(e.installmentAmount || 0)}</td>
+                    <td style="padding: 4px 6px; text-align: right; font-weight: 800; color: #059669;">+ ${formatCurrency(e.profit)}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+
+      <!-- RODAPÉ FORMAL -->
+      <div style="border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 16px; display: flex; justify-content: space-between; font-size: 9px; color: #64748b; page-break-inside: avoid;">
+        <div>Gordinhos Financeiro • Sistema de Gestão Financeira & Cobranças</div>
+        <div>Documento contábil emitido eletronicamente</div>
+      </div>
+
+    </div>
+  `;
+
+  return html;
+}
+
+async function downloadAnnualProfitReportPDF(year) {
+  const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
+  const btnPdf = document.getElementById('btnDownloadAnnualReportPdf');
+  const originalBtnContent = btnPdf ? btnPdf.innerHTML : '';
+
+  if (btnPdf) {
+    btnPdf.disabled = true;
+    btnPdf.style.opacity = '0.7';
+    btnPdf.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+        <circle cx="12" cy="12" r="10" stroke-opacity="0.25" stroke="currentColor" fill="none"></circle>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path>
+      </svg>
+      <span>Gerando PDF...</span>
+    `;
+  }
+
+  showToast(`Gerando arquivo PDF do relatório de ${selectedYear}...`, 'info');
+
+  try {
+    if (typeof html2pdf === 'undefined') {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Não foi possível carregar html2pdf.'));
+        document.head.appendChild(s);
+      });
+    }
+
+    const container = document.createElement('div');
+    container.id = 'tempPdfRenderContainer';
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = '794px';
+    container.style.background = '#ffffff';
+    container.style.color = '#0f172a';
+    container.style.zIndex = '-99999';
+    container.style.boxSizing = 'border-box';
+    container.style.padding = '24px';
+    container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+    container.innerHTML = getAnnualReportPdfTemplateHtml(selectedYear);
+    document.body.appendChild(container);
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const opt = {
+      margin: [8, 8, 8, 8],
+      filename: `Relatorio_Lucro_Anual_${selectedYear}_${dateStr}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        scrollY: 0,
+        windowWidth: 794
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    await html2pdf().set(opt).from(container).save();
+    container.remove();
+
+    showToast(`PDF do ano ${selectedYear} baixado com sucesso!`, 'success');
+  } catch (err) {
+    console.error('Erro na exportação de PDF:', err);
+    showToast('Falha na geração automática. Abrindo diálogo de impressão/salvar...', 'warning');
+    window.print();
+  } finally {
+    if (btnPdf) {
+      btnPdf.disabled = false;
+      btnPdf.style.opacity = '1';
+      btnPdf.innerHTML = originalBtnContent;
+    }
+  }
+}
+
 function printAnnualProfitReport() {
   window.print();
 }
@@ -3079,6 +3469,13 @@ function setupEventListeners() {
   if (annualReportSelectYear) {
     annualReportSelectYear.addEventListener('change', (e) => {
       renderAnnualProfitReport(e.target.value);
+    });
+  }
+
+  const btnDownloadAnnualReportPdf = document.getElementById('btnDownloadAnnualReportPdf');
+  if (btnDownloadAnnualReportPdf) {
+    btnDownloadAnnualReportPdf.addEventListener('click', () => {
+      downloadAnnualProfitReportPDF(selectedAnnualReportYear);
     });
   }
 
