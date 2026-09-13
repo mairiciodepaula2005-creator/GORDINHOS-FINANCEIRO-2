@@ -2116,51 +2116,64 @@ function getAnnualReportPdfTemplateHtml(year) {
 }
 
 function downloadAnnualProfitReportPDF(year) {
-  console.log('[PDF Anual] Abrindo janela de impressão nativa formatada para A4...');
+  console.log('[PDF Anual] Capturando conteúdo do relatório para impressão nativa...');
   const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
+  // Pega o conteúdo HTML exato que já está preenchido e visível no elemento do relatório
+  let el = document.getElementById('printableReportArea');
+  if (!el || !el.innerHTML.trim()) {
+    renderAnnualProfitReport(selectedYear);
+    el = document.getElementById('printableReportArea');
+  }
+
+  const conteudo = el && el.innerHTML.trim() ? el.innerHTML : getAnnualReportPdfTemplateHtml(selectedYear);
+
+  const printWin = window.open('', '_blank', 'width=900,height=700');
+  if (!printWin) {
     alert('O navegador bloqueou a abertura da janela de impressão. Por favor, permita popups para este site.');
     return;
   }
 
-  const contentHtml = getAnnualReportPdfTemplateHtml(selectedYear);
-  const fullHtml = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>Relatório Anual de Lucro - ${selectedYear}</title>
-  <style>
-    @page { size: A4 portrait; margin: 15mm; }
-    body { font-family: Arial, sans-serif; color: #000; background: #fff; margin: 0; padding: 0; font-size: 11px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 11px; }
-    th { background: #f3f4f6; }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      tr { page-break-inside: avoid; }
-    }
-  </style>
-</head>
-<body>
-  ${contentHtml}
-</body>
-</html>`;
-
-  printWindow.document.open();
-  printWindow.document.write(fullHtml);
-  printWindow.document.close();
-
-  showToast(`Abrindo janela de impressão/PDF do ano ${selectedYear}...`, 'success');
-
+  printWin.document.write(`
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Relatório Anual de Lucro - ${selectedYear}</title>
+      <style>
+        @page { size: A4 portrait; margin: 12mm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #111; background: #fff; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 11px; text-align: left; }
+        th { background-color: #f1f5f9; font-weight: 600; }
+        .no-print { display: none !important; }
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          tr { page-break-inside: avoid; }
+        }
+        /* Assegura legibilidade de elementos que usavam texto claro no modo escuro */
+        [style*="color: #ffffff"], [style*="color:#ffffff"], [style*="color: white"], [style*="color: #fff"] {
+          color: #111 !important;
+        }
+        [style*="background: #0f172a"], [style*="background: #1e293b"], [style*="background: var(--bg-input)"] {
+          background: #f8fafc !important;
+          color: #111 !important;
+          border-color: #cbd5e1 !important;
+        }
+      </style>
+    </head>
+    <body>
+      ${conteudo}
+    </body>
+  </html>
+  `);
+  printWin.document.close();
+  printWin.focus();
   setTimeout(() => {
     try {
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-    } catch (err) {
-      console.error('[PDF Anual] Erro ao disparar impressão:', err);
+      printWin.print();
+      printWin.close();
+    } catch (e) {
+      console.error('[PDF Anual] Erro ao disparar impressão:', e);
     }
   }, 350);
 }
@@ -2386,50 +2399,46 @@ function getGeneralReportPdfTemplateHtml() {
 }
 
 function downloadGeneralReportPdf() {
-  console.log('[PDF Geral] Abrindo janela de impressão nativa formatada para A4...');
+  console.log('[PDF Geral] Capturando conteúdo do relatório geral para impressão nativa...');
+  const conteudo = getGeneralReportPdfTemplateHtml();
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
+  const printWin = window.open('', '_blank', 'width=900,height=700');
+  if (!printWin) {
     alert('O navegador bloqueou a abertura da janela de impressão. Por favor, permita popups para este site.');
     return;
   }
 
-  const contentHtml = getGeneralReportPdfTemplateHtml();
-  const fullHtml = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>Relatório Geral de Empréstimos & Cobranças</title>
-  <style>
-    @page { size: A4 portrait; margin: 15mm; }
-    body { font-family: Arial, sans-serif; color: #000; background: #fff; margin: 0; padding: 0; font-size: 11px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 11px; }
-    th { background: #f3f4f6; }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      tr { page-break-inside: avoid; }
-    }
-  </style>
-</head>
-<body>
-  ${contentHtml}
-</body>
-</html>`;
-
-  printWindow.document.open();
-  printWindow.document.write(fullHtml);
-  printWindow.document.close();
-
-  showToast('Abrindo janela de impressão/salvar em PDF...', 'success');
-
+  printWin.document.write(`
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Relatório Geral em PDF</title>
+      <style>
+        @page { size: A4 portrait; margin: 12mm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #111; background: #fff; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 11px; text-align: left; }
+        th { background-color: #f1f5f9; font-weight: 600; }
+        .no-print { display: none !important; }
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          tr { page-break-inside: avoid; }
+        }
+      </style>
+    </head>
+    <body>
+      ${conteudo}
+    </body>
+  </html>
+  `);
+  printWin.document.close();
+  printWin.focus();
   setTimeout(() => {
     try {
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-    } catch (err) {
-      console.error('[PDF Geral] Erro ao disparar impressão:', err);
+      printWin.print();
+      printWin.close();
+    } catch (e) {
+      console.error('[PDF Geral] Erro ao disparar impressão:', e);
     }
   }, 350);
 }
