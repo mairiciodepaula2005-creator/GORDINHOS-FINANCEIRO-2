@@ -1902,7 +1902,7 @@ function getAnnualReportPdfTemplateHtml(year) {
   const isCurrentYear = (selectedYear === currentYear);
 
   let html = `
-    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #0f172a; background: #ffffff; line-height: 1.4; padding: 10px;">
+    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #111827 !important; background: #ffffff !important; line-height: 1.4; padding: 20px; width: 800px; box-sizing: border-box; overflow: visible; height: auto; max-height: none;">
       
       <!-- CABEÇALHO FORMAL -->
       <div style="border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 16px;">
@@ -2183,16 +2183,24 @@ async function downloadAnnualProfitReportPDF(year) {
     container.style.position = 'fixed';
     container.style.left = '0';
     container.style.top = '0';
-    container.style.width = '794px';
-    container.style.background = '#ffffff';
-    container.style.color = '#0f172a';
-    container.style.zIndex = '999999';
+    container.style.zIndex = '-9999';
+    container.style.width = '800px';
+    container.style.minWidth = '800px';
+    container.style.display = 'block';
+    container.style.backgroundColor = '#ffffff';
+    container.style.color = '#111827';
+    container.style.overflow = 'visible';
+    container.style.height = 'auto';
+    container.style.maxHeight = 'none';
     container.style.boxSizing = 'border-box';
-    container.style.padding = '24px';
+    container.style.padding = '0';
     container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
     container.innerHTML = getAnnualReportPdfTemplateHtml(selectedYear);
     document.body.appendChild(container);
+
+    // Pausa assíncrona para garantir reflow e pintura completa no DOM antes da captura
+    await new Promise(resolve => setTimeout(resolve, 150));
 
     const dateStr = new Date().toISOString().split('T')[0];
     const filename = `Relatorio_Lucro_Anual_${selectedYear}_${dateStr}.pdf`;
@@ -2201,11 +2209,12 @@ async function downloadAnnualProfitReportPDF(year) {
       filename: filename,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
-        scale: 1.5,
+        scale: 2,
         useCORS: true,
         letterRendering: true,
         scrollY: 0,
-        windowWidth: 794
+        scrollX: 0,
+        backgroundColor: '#ffffff'
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
@@ -2372,7 +2381,7 @@ function getGeneralReportPdfTemplateHtml() {
   }).join('');
 
   return `
-    <div style="width: 794px; min-height: 1120px; box-sizing: border-box; padding: 24px 28px; background: #ffffff; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.35;">
+    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #111827 !important; background: #ffffff !important; line-height: 1.35; padding: 24px 28px; width: 800px; box-sizing: border-box; overflow: visible; height: auto; max-height: none;">
       
       <!-- CABEÇALHO DO DOCUMENTO COM DATA/HORA DA EMISSÃO -->
       <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #059669; padding-bottom: 12px; margin-bottom: 14px;">
@@ -2540,16 +2549,24 @@ async function downloadGeneralReportPdf() {
     container.style.position = 'fixed';
     container.style.left = '0';
     container.style.top = '0';
-    container.style.width = '794px';
-    container.style.background = '#ffffff';
-    container.style.color = '#0f172a';
-    container.style.zIndex = '999999';
+    container.style.zIndex = '-9999';
+    container.style.width = '800px';
+    container.style.minWidth = '800px';
+    container.style.display = 'block';
+    container.style.backgroundColor = '#ffffff';
+    container.style.color = '#111827';
+    container.style.overflow = 'visible';
+    container.style.height = 'auto';
+    container.style.maxHeight = 'none';
     container.style.boxSizing = 'border-box';
     container.style.padding = '0';
     container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
     container.innerHTML = getGeneralReportPdfTemplateHtml();
     document.body.appendChild(container);
+
+    // Pausa assíncrona para garantir reflow e pintura completa no DOM antes da captura
+    await new Promise(resolve => setTimeout(resolve, 150));
 
     const dateStr = new Date().toISOString().split('T')[0];
     const filename = `Relatorio_Geral_Financeiro_${dateStr}.pdf`;
@@ -2558,11 +2575,12 @@ async function downloadGeneralReportPdf() {
       filename: filename,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
-        scale: 1.5,
+        scale: 2,
         useCORS: true,
         letterRendering: true,
         scrollY: 0,
-        windowWidth: 794
+        scrollX: 0,
+        backgroundColor: '#ffffff'
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
