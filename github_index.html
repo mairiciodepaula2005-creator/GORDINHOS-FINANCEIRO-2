@@ -4010,7 +4010,7 @@ function getAnnualReportPdfTemplateHtml(year) {
   const isCurrentYear = (selectedYear === currentYear);
 
   let html = `
-    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #111827 !important; background: #ffffff !important; line-height: 1.4; padding: 20px; width: 800px; box-sizing: border-box; overflow: visible; height: auto; max-height: none;">
+    <div style="font-family: Arial, sans-serif; color: #000; background: #fff; line-height: 1.4; width: 100%; box-sizing: border-box;">
       
       <!-- CABEÇALHO FORMAL -->
       <div style="border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 16px;">
@@ -4223,169 +4223,58 @@ function getAnnualReportPdfTemplateHtml(year) {
   return html;
 }
 
-async function downloadAnnualProfitReportPDF(year) {
-  console.log('[PDF Anual] Iniciando geração do relatório PDF...');
+function downloadAnnualProfitReportPDF(year) {
+  console.log('[PDF Anual] Abrindo janela de impressão nativa formatada para A4...');
   const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
-  console.log('[PDF Anual] Ano selecionado:', selectedYear);
 
-  const btnPdf = document.getElementById('btnDownloadAnnualReportPdf');
-  const btnFooterPdf = document.getElementById('btnModalFooterDownloadPdf');
-  const originalBtnContent = btnPdf ? btnPdf.innerHTML : '';
-  const originalFooterContent = btnFooterPdf ? btnFooterPdf.innerHTML : '';
-
-  const setButtonsLoading = (isLoading) => {
-    [btnPdf, btnFooterPdf].forEach(b => {
-      if (!b) return;
-      b.disabled = isLoading;
-      b.style.opacity = isLoading ? '0.7' : '1';
-      if (isLoading) {
-        b.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
-            <circle cx="12" cy="12" r="10" stroke-opacity="0.25" stroke="currentColor" fill="none"></circle>
-            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path>
-          </svg>
-          <span>Gerando PDF...</span>
-        `;
-      } else {
-        if (b === btnPdf) b.innerHTML = originalBtnContent;
-        if (b === btnFooterPdf) b.innerHTML = originalFooterContent;
-      }
-    });
-  };
-
-  setButtonsLoading(true);
-  showToast(`Gerando arquivo PDF do relatório de ${selectedYear}...`, 'info');
-
-  try {
-    if (typeof html2pdf === 'undefined') {
-      console.log('[PDF Anual] html2pdf não encontrado no escopo global. Tentando carregar local e CDN...');
-      await new Promise((resolve, reject) => {
-        const s1 = document.createElement('script');
-        s1.src = 'html2pdf.bundle.min.js';
-        s1.onload = () => {
-          console.log('[PDF Anual] html2pdf carregado via arquivo local.');
-          resolve();
-        };
-        s1.onerror = () => {
-          console.log('[PDF Anual] Falha ao carregar local. Tentando CDN...');
-          const s2 = document.createElement('script');
-          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-          s2.onload = () => {
-            console.log('[PDF Anual] html2pdf carregado via CDN.');
-            resolve();
-          };
-          s2.onerror = () => reject(new Error('Biblioteca html2pdf não pôde ser carregada nem localmente nem via CDN.'));
-          document.head.appendChild(s2);
-        };
-        document.head.appendChild(s1);
-      });
-    }
-
-    if (typeof html2pdf === 'undefined') {
-      throw new Error('A biblioteca html2pdf não está disponível.');
-    }
-
-    console.log('[PDF Anual] Montando container de renderização do relatório...');
-    const container = document.createElement('div');
-    container.id = 'tempPdfRenderContainer';
-    container.style.position = 'fixed';
-    container.style.left = '0';
-    container.style.top = '0';
-    container.style.zIndex = '-9999';
-    container.style.width = '800px';
-    container.style.minWidth = '800px';
-    container.style.display = 'block';
-    container.style.backgroundColor = '#ffffff';
-    container.style.color = '#111827';
-    container.style.overflow = 'visible';
-    container.style.height = 'auto';
-    container.style.maxHeight = 'none';
-    container.style.boxSizing = 'border-box';
-    container.style.padding = '0';
-    container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-
-    container.innerHTML = getAnnualReportPdfTemplateHtml(selectedYear);
-    document.body.appendChild(container);
-
-    // Pausa assíncrona para garantir reflow e pintura completa no DOM antes da captura
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    const dateStr = new Date().toISOString().split('T')[0];
-    const filename = `Relatorio_Lucro_Anual_${selectedYear}_${dateStr}.pdf`;
-    const opt = {
-      margin: [8, 8, 8, 8],
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        letterRendering: true,
-        scrollY: 0,
-        scrollX: 0,
-        backgroundColor: '#ffffff'
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    console.log('[PDF Anual] Disparando download automático via html2pdf().save()...');
-    await html2pdf().set(opt).from(container).save();
-
-    // Fallback adicional criando Blob e link direto na interface
-    try {
-      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-      if (pdfBlob) {
-        const fileUrl = URL.createObjectURL(pdfBlob);
-        const bannerId = 'pdfDownloadSuccessBanner';
-        const oldBanner = document.getElementById(bannerId);
-        if (oldBanner) oldBanner.remove();
-
-        const banner = document.createElement('div');
-        banner.id = bannerId;
-        banner.style.cssText = 'background: linear-gradient(135deg, #059669, #047857); color: #ffffff; padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #10b981; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: 0 4px 12px rgba(0,0,0,0.25);';
-        banner.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 22px;">✅</span>
-            <div>
-              <div style="font-weight: 800; font-size: 13px; color: #ffffff;">Relatório PDF Gerado com Sucesso!</div>
-              <div style="font-size: 11px; opacity: 0.95; color: #e2e8f0;">Se o seu navegador não salvou automaticamente, use as opções:</div>
-            </div>
-          </div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <a href="${fileUrl}" download="${filename}" class="btn" style="background: #ffffff; color: #065f46; font-weight: 800; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-              📥 Baixar Novamente
-            </a>
-            <a href="${fileUrl}" target="_blank" class="btn" style="background: rgba(255,255,255,0.2); color: #ffffff; font-weight: 700; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,0.3);">
-              👁️ Abrir / Visualizar
-            </a>
-          </div>
-        `;
-
-        const reportArea = document.getElementById('printableReportArea');
-        if (reportArea && reportArea.parentNode) {
-          reportArea.parentNode.insertBefore(banner, reportArea);
-        }
-      }
-    } catch (bErr) {
-      console.warn('[PDF Anual] Aviso no fallback de blob:', bErr);
-    }
-
-    container.remove();
-    console.log('[PDF Anual] Download concluído com sucesso!');
-    showToast(`PDF do ano ${selectedYear} gerado com sucesso!`, 'success');
-  } catch (err) {
-    console.error('[PDF Anual] Erro na geração de PDF:', err);
-    alert('Erro ao gerar relatório em PDF: ' + err.message + '\n\nO sistema abrirá a janela de impressão/salvar em PDF.');
-    showToast('Abrindo visualização de impressão/salvar em PDF...', 'warning');
-    window.print();
-  } finally {
-    const tempEl = document.getElementById('tempPdfRenderContainer');
-    if (tempEl) tempEl.remove();
-    setButtonsLoading(false);
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('O navegador bloqueou a abertura da janela de impressão. Por favor, permita popups para este site.');
+    return;
   }
+
+  const contentHtml = getAnnualReportPdfTemplateHtml(selectedYear);
+  const fullHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório Anual de Lucro - ${selectedYear}</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    body { font-family: Arial, sans-serif; color: #000; background: #fff; margin: 0; padding: 0; font-size: 11px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 11px; }
+    th { background: #f3f4f6; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  ${contentHtml}
+</body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(fullHtml);
+  printWindow.document.close();
+
+  showToast(`Abrindo janela de impressão/PDF do ano ${selectedYear}...`, 'success');
+
+  setTimeout(() => {
+    try {
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    } catch (err) {
+      console.error('[PDF Anual] Erro ao disparar impressão:', err);
+    }
+  }, 350);
 }
 
 function printAnnualProfitReport() {
-  window.print();
+  downloadAnnualProfitReportPDF();
 }
 
 function formatPhoneForPdf(phone) {
@@ -4489,7 +4378,7 @@ function getGeneralReportPdfTemplateHtml() {
   }).join('');
 
   return `
-    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #111827 !important; background: #ffffff !important; line-height: 1.35; padding: 24px 28px; width: 800px; box-sizing: border-box; overflow: visible; height: auto; max-height: none;">
+    <div style="font-family: Arial, sans-serif; color: #000; background: #fff; line-height: 1.35; width: 100%; box-sizing: border-box;">
       
       <!-- CABEÇALHO DO DOCUMENTO COM DATA/HORA DA EMISSÃO -->
       <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #059669; padding-bottom: 12px; margin-bottom: 14px;">
@@ -4604,146 +4493,53 @@ function getGeneralReportPdfTemplateHtml() {
   `;
 }
 
-async function downloadGeneralReportPdf() {
-  console.log('[PDF Geral] Início do processo de download do Relatório Geral em PDF...');
-  const btns = document.querySelectorAll('.btn-download-general-report');
-  const originalContents = [];
-  btns.forEach((b, i) => {
-    originalContents[i] = b.innerHTML;
-    b.disabled = true;
-    b.innerHTML = `
-      <svg class="spin-animation" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation: spin 1s linear infinite;">
-        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path>
-      </svg>
-      <span>Gerando PDF...</span>
-    `;
-  });
+function downloadGeneralReportPdf() {
+  console.log('[PDF Geral] Abrindo janela de impressão nativa formatada para A4...');
 
-  showToast('Gerando Relatório Geral em PDF... Aguarde um instante.', 'info');
-
-  try {
-    if (typeof html2pdf === 'undefined') {
-      console.log('[PDF Geral] html2pdf não encontrado no escopo global. Carregando local e CDN...');
-      await new Promise((resolve, reject) => {
-        const s1 = document.createElement('script');
-        s1.src = 'html2pdf.bundle.min.js';
-        s1.onload = () => {
-          console.log('[PDF Geral] html2pdf carregado via arquivo local.');
-          resolve();
-        };
-        s1.onerror = () => {
-          console.log('[PDF Geral] Falha ao carregar local. Tentando CDN...');
-          const s2 = document.createElement('script');
-          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-          s2.onload = () => {
-            console.log('[PDF Geral] html2pdf carregado via CDN.');
-            resolve();
-          };
-          s2.onerror = () => reject(new Error('Não foi possível carregar a biblioteca html2pdf (nem local nem via CDN).'));
-          document.head.appendChild(s2);
-        };
-        document.head.appendChild(s1);
-      });
-    }
-
-    if (typeof html2pdf === 'undefined') {
-      throw new Error('A biblioteca html2pdf não está disponível.');
-    }
-
-    console.log('[PDF Geral] Montando container de renderização do relatório geral...');
-    const container = document.createElement('div');
-    container.id = 'tempGeneralPdfRenderContainer';
-    container.style.position = 'fixed';
-    container.style.left = '0';
-    container.style.top = '0';
-    container.style.zIndex = '-9999';
-    container.style.width = '800px';
-    container.style.minWidth = '800px';
-    container.style.display = 'block';
-    container.style.backgroundColor = '#ffffff';
-    container.style.color = '#111827';
-    container.style.overflow = 'visible';
-    container.style.height = 'auto';
-    container.style.maxHeight = 'none';
-    container.style.boxSizing = 'border-box';
-    container.style.padding = '0';
-    container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-
-    container.innerHTML = getGeneralReportPdfTemplateHtml();
-    document.body.appendChild(container);
-
-    // Pausa assíncrona para garantir reflow e pintura completa no DOM antes da captura
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    const dateStr = new Date().toISOString().split('T')[0];
-    const filename = `Relatorio_Geral_Financeiro_${dateStr}.pdf`;
-    const opt = {
-      margin: [8, 8, 8, 8],
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        letterRendering: true,
-        scrollY: 0,
-        scrollX: 0,
-        backgroundColor: '#ffffff'
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    };
-
-    console.log('[PDF Geral] Disparando download automático via html2pdf().save()...');
-    await html2pdf().set(opt).from(container).save();
-
-    // Fallback adicional criando Blob e link direto na interface
-    try {
-      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-      if (pdfBlob) {
-        const fileUrl = URL.createObjectURL(pdfBlob);
-        const listContainer = document.getElementById('clientsListContainer');
-        if (listContainer) {
-          const oldAlert = document.getElementById('generalPdfSuccessAlert');
-          if (oldAlert) oldAlert.remove();
-
-          const alertDiv = document.createElement('div');
-          alertDiv.id = 'generalPdfSuccessAlert';
-          alertDiv.style.cssText = 'background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; color: #ffffff;';
-          alertDiv.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span>✅</span>
-              <span><strong>Relatório em PDF Gerado:</strong> ${filename}</span>
-            </div>
-            <div style="display: flex; gap: 6px;">
-              <a href="${fileUrl}" download="${filename}" style="background: var(--green-primary); color: #072611; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none;">📥 Baixar Novamente</a>
-              <a href="${fileUrl}" target="_blank" style="background: rgba(255,255,255,0.1); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);">👁️ Abrir / Visualizar</a>
-            </div>
-          `;
-          listContainer.prepend(alertDiv);
-          setTimeout(() => alertDiv.remove(), 20000);
-        }
-      }
-    } catch(bErr) {
-      console.warn('[PDF Geral] Aviso no fallback de blob:', bErr);
-    }
-
-    container.remove();
-    console.log('[PDF Geral] Download concluído com sucesso!');
-    showToast('Relatório Geral em PDF baixado com sucesso!', 'success');
-  } catch (err) {
-    console.error('[PDF Geral] Erro na exportação de PDF geral:', err);
-    alert('Erro ao gerar relatório geral em PDF: ' + err.message + '\n\nO sistema abrirá a janela de impressão/salvar em PDF.');
-    showToast('Erro ao gerar PDF: ' + err.message, 'error');
-    window.print();
-  } finally {
-    const tempEl = document.getElementById('tempGeneralPdfRenderContainer');
-    if (tempEl) tempEl.remove();
-    btns.forEach((b, i) => {
-      b.disabled = false;
-      b.innerHTML = originalContents[i];
-    });
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('O navegador bloqueou a abertura da janela de impressão. Por favor, permita popups para este site.');
+    return;
   }
+
+  const contentHtml = getGeneralReportPdfTemplateHtml();
+  const fullHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório Geral de Empréstimos & Cobranças</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    body { font-family: Arial, sans-serif; color: #000; background: #fff; margin: 0; padding: 0; font-size: 11px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 11px; }
+    th { background: #f3f4f6; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  ${contentHtml}
+</body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(fullHtml);
+  printWindow.document.close();
+
+  showToast('Abrindo janela de impressão/salvar em PDF...', 'success');
+
+  setTimeout(() => {
+    try {
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    } catch (err) {
+      console.error('[PDF Geral] Erro ao disparar impressão:', err);
+    }
+  }, 350);
 }
 
 function renderClientsList() {
