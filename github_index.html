@@ -7,8 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <!-- BIBLIOTECA FRONT-END DE GERAÇÃO DE PDF VIA CDN (html2pdf.js) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- BIBLIOTECA FRONT-END DE GERAÇÃO DE PDF (LOCAL COM FALLBACK CDN) -->
+  <script src="html2pdf.bundle.min.js"></script>
+  <script>
+    if (typeof html2pdf === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>');
+    }
+  </script>
   <style>
 /* ==========================================================================
    GORDINHOS FINANCEIRO - INTERFACE JUROSAPP (DARK MODE MOBILE NATIVO)
@@ -1200,7 +1205,7 @@ body {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           <span>Novo Cliente</span>
         </button>
-        <button type="button" class="btn-new-client btn-download-general-report" id="btnDownloadGeneralPdf" style="flex: 1; min-width: 175px; margin-top: 0; background: rgba(59, 130, 246, 0.18); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; justify-content: center;">
+        <button type="button" class="btn-new-client btn-download-general-report" id="btnDownloadGeneralPdf" onclick="downloadGeneralReportPdf()" style="flex: 1; min-width: 175px; margin-top: 0; background: rgba(59, 130, 246, 0.18); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; justify-content: center;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           <span>Baixar Relatório em PDF</span>
         </button>
@@ -1255,11 +1260,11 @@ body {
                 LUCRO REAL
               </span>
               <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end;">
-                <button type="button" id="btnOpenProfitStatement" style="background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.35); color: #34d399; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <button type="button" id="btnOpenProfitStatement" onclick="openProfitStatementModal()" style="background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.35); color: #34d399; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                   Ver Extrato
                 </button>
-                <button type="button" id="btnOpenProfitReport" style="background: rgba(59, 130, 246, 0.18); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <button type="button" id="btnOpenProfitReport" onclick="openAnnualProfitReportModal()" style="background: rgba(59, 130, 246, 0.18); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
                   Exportar Relatório
                 </button>
@@ -1432,7 +1437,7 @@ body {
               <span>Baixar Planilha Completa (.CSV para Google Drive / Excel)</span>
             </button>
 
-            <button type="button" class="sheet-action-btn btn-download-general-report" id="btnDownloadGeneralPdfFromMais" style="justify-content: center; background: rgba(59, 130, 246, 0.18); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; font-weight: 600;">
+            <button type="button" class="sheet-action-btn btn-download-general-report" id="btnDownloadGeneralPdfFromMais" onclick="downloadGeneralReportPdf()" style="justify-content: center; background: rgba(59, 130, 246, 0.18); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; font-weight: 600;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
               <span>Baixar Relatório Geral em PDF</span>
             </button>
@@ -2011,19 +2016,19 @@ body {
             </select>
           </div>
           <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
-            <button type="button" id="btnDownloadAnnualReportPdf" class="btn btn-primary" style="padding: 0.35rem 0.65rem; font-size: 0.74rem; display: flex; align-items: center; gap: 4px; background: #dc2626; border-color: #b91c1c; color: #ffffff; font-weight: 700;">
+            <button type="button" id="btnDownloadAnnualReportPdf" onclick="downloadAnnualProfitReportPDF()" class="btn btn-primary" style="padding: 0.35rem 0.65rem; font-size: 0.74rem; display: flex; align-items: center; gap: 4px; background: #dc2626; border-color: #b91c1c; color: #ffffff; font-weight: 700;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
               <span>Baixar PDF</span>
             </button>
-            <button type="button" id="btnDownloadAnnualReportCsv" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.74rem; display: flex; align-items: center; gap: 4px; border-color: rgba(52, 211, 153, 0.4); color: #34d399;">
+            <button type="button" id="btnDownloadAnnualReportCsv" onclick="downloadAnnualProfitReportCSV()" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.74rem; display: flex; align-items: center; gap: 4px; border-color: rgba(52, 211, 153, 0.4); color: #34d399;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               <span>Baixar CSV</span>
             </button>
-            <button type="button" id="btnPrintAnnualReport" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.74rem; display: flex; align-items: center; gap: 4px;">
+            <button type="button" id="btnPrintAnnualReport" onclick="printAnnualProfitReport()" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.74rem; display: flex; align-items: center; gap: 4px;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               <span>Imprimir</span>
             </button>
-            <button type="button" id="btnCopyAnnualReportText" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.74rem; display: flex; align-items: center; gap: 4px; border-color: rgba(59, 130, 246, 0.4); color: #60a5fa;">
+            <button type="button" id="btnCopyAnnualReportText" onclick="copyAnnualProfitReportText()" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.74rem; display: flex; align-items: center; gap: 4px; border-color: rgba(59, 130, 246, 0.4); color: #60a5fa;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               <span>WhatsApp</span>
             </button>
@@ -2037,7 +2042,7 @@ body {
       </div>
 
       <div class="modal-sheet-footer no-print" style="display: flex; gap: 0.5rem;">
-        <button type="button" id="btnModalFooterDownloadPdf" class="btn btn-primary" style="flex: 1.2; justify-content: center; font-size: 0.82rem; background: #dc2626; border-color: #b91c1c; color: #ffffff; font-weight: 700;">
+        <button type="button" id="btnModalFooterDownloadPdf" onclick="downloadAnnualProfitReportPDF()" class="btn btn-primary" style="flex: 1.2; justify-content: center; font-size: 0.82rem; background: #dc2626; border-color: #b91c1c; color: #ffffff; font-weight: 700;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
           <span>Baixar PDF</span>
         </button>
@@ -3417,30 +3422,36 @@ function getAvailableProfitYears() {
 }
 
 function openAnnualProfitReportModal(requestedYear) {
-  const availableYears = getAvailableProfitYears();
-  const parsedReq = parseInt(requestedYear, 10);
-  const parsedDash = parseInt(selectedProfitYear, 10);
+  console.log('[Relatório Anual] Clique em Exportar Relatório detectado. Abrindo modal para o ano:', requestedYear);
+  try {
+    const availableYears = getAvailableProfitYears();
+    const parsedReq = parseInt(requestedYear, 10);
+    const parsedDash = parseInt(selectedProfitYear, 10);
 
-  if (!isNaN(parsedReq) && availableYears.includes(parsedReq)) {
-    selectedAnnualReportYear = parsedReq;
-  } else if (!isNaN(parsedDash) && availableYears.includes(parsedDash)) {
-    selectedAnnualReportYear = parsedDash;
-  } else {
-    selectedAnnualReportYear = availableYears[0] || new Date().getFullYear();
+    if (!isNaN(parsedReq) && availableYears.includes(parsedReq)) {
+      selectedAnnualReportYear = parsedReq;
+    } else if (!isNaN(parsedDash) && availableYears.includes(parsedDash)) {
+      selectedAnnualReportYear = parsedDash;
+    } else {
+      selectedAnnualReportYear = availableYears[0] || new Date().getFullYear();
+    }
+
+    const yearSelect = document.getElementById('annualReportSelectYear');
+    if (yearSelect) {
+      let optionsHtml = '';
+      availableYears.forEach(y => {
+        optionsHtml += `<option value="${y}" ${y === selectedAnnualReportYear ? 'selected' : ''}>Exercício ${y}</option>`;
+      });
+      yearSelect.innerHTML = optionsHtml;
+      yearSelect.value = selectedAnnualReportYear;
+    }
+
+    renderAnnualProfitReport(selectedAnnualReportYear);
+    openModal('modalAnnualProfitReport');
+  } catch (err) {
+    console.error('[Relatório Anual] Erro ao abrir modal de relatório:', err);
+    alert('Erro ao abrir relatório: ' + err.message);
   }
-
-  const yearSelect = document.getElementById('annualReportSelectYear');
-  if (yearSelect) {
-    let optionsHtml = '';
-    availableYears.forEach(y => {
-      optionsHtml += `<option value="${y}" ${y === selectedAnnualReportYear ? 'selected' : ''}>Exercício ${y}</option>`;
-    });
-    yearSelect.innerHTML = optionsHtml;
-    yearSelect.value = selectedAnnualReportYear;
-  }
-
-  renderAnnualProfitReport(selectedAnnualReportYear);
-  openModal('modalAnnualProfitReport');
 }
 
 function renderAnnualProfitReport(year) {
@@ -4213,7 +4224,10 @@ function getAnnualReportPdfTemplateHtml(year) {
 }
 
 async function downloadAnnualProfitReportPDF(year) {
+  console.log('[PDF Anual] Iniciando geração do relatório PDF...');
   const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
+  console.log('[PDF Anual] Ano selecionado:', selectedYear);
+
   const btnPdf = document.getElementById('btnDownloadAnnualReportPdf');
   const btnFooterPdf = document.getElementById('btnModalFooterDownloadPdf');
   const originalBtnContent = btnPdf ? btnPdf.innerHTML : '';
@@ -4244,15 +4258,34 @@ async function downloadAnnualProfitReportPDF(year) {
 
   try {
     if (typeof html2pdf === 'undefined') {
+      console.log('[PDF Anual] html2pdf não encontrado no escopo global. Tentando carregar local e CDN...');
       await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        s.onload = resolve;
-        s.onerror = () => reject(new Error('Biblioteca html2pdf indisponível.'));
-        document.head.appendChild(s);
+        const s1 = document.createElement('script');
+        s1.src = 'html2pdf.bundle.min.js';
+        s1.onload = () => {
+          console.log('[PDF Anual] html2pdf carregado via arquivo local.');
+          resolve();
+        };
+        s1.onerror = () => {
+          console.log('[PDF Anual] Falha ao carregar local. Tentando CDN...');
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+          s2.onload = () => {
+            console.log('[PDF Anual] html2pdf carregado via CDN.');
+            resolve();
+          };
+          s2.onerror = () => reject(new Error('Biblioteca html2pdf não pôde ser carregada nem localmente nem via CDN.'));
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s1);
       });
     }
 
+    if (typeof html2pdf === 'undefined') {
+      throw new Error('A biblioteca html2pdf não está disponível.');
+    }
+
+    console.log('[PDF Anual] Montando container de renderização do relatório...');
     const container = document.createElement('div');
     container.id = 'tempPdfRenderContainer';
     container.style.position = 'fixed';
@@ -4285,60 +4318,59 @@ async function downloadAnnualProfitReportPDF(year) {
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-    container.remove();
+    console.log('[PDF Anual] Disparando download automático via html2pdf().save()...');
+    await html2pdf().set(opt).from(container).save();
 
-    const fileUrl = URL.createObjectURL(pdfBlob);
-
-    // 1. Tenta download programático
+    // Fallback adicional criando Blob e link direto na interface
     try {
-      const a = document.createElement('a');
-      a.href = fileUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => a.remove(), 1000);
-    } catch(e) {
-      console.warn('Download direto bloqueado pelo navegador:', e);
+      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+      if (pdfBlob) {
+        const fileUrl = URL.createObjectURL(pdfBlob);
+        const bannerId = 'pdfDownloadSuccessBanner';
+        const oldBanner = document.getElementById(bannerId);
+        if (oldBanner) oldBanner.remove();
+
+        const banner = document.createElement('div');
+        banner.id = bannerId;
+        banner.style.cssText = 'background: linear-gradient(135deg, #059669, #047857); color: #ffffff; padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #10b981; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: 0 4px 12px rgba(0,0,0,0.25);';
+        banner.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 22px;">✅</span>
+            <div>
+              <div style="font-weight: 800; font-size: 13px; color: #ffffff;">Relatório PDF Gerado com Sucesso!</div>
+              <div style="font-size: 11px; opacity: 0.95; color: #e2e8f0;">Se o seu navegador não salvou automaticamente, use as opções:</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="${fileUrl}" download="${filename}" class="btn" style="background: #ffffff; color: #065f46; font-weight: 800; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+              📥 Baixar Novamente
+            </a>
+            <a href="${fileUrl}" target="_blank" class="btn" style="background: rgba(255,255,255,0.2); color: #ffffff; font-weight: 700; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,0.3);">
+              👁️ Abrir / Visualizar
+            </a>
+          </div>
+        `;
+
+        const reportArea = document.getElementById('printableReportArea');
+        if (reportArea && reportArea.parentNode) {
+          reportArea.parentNode.insertBefore(banner, reportArea);
+        }
+      }
+    } catch (bErr) {
+      console.warn('[PDF Anual] Aviso no fallback de blob:', bErr);
     }
 
-    // 2. Cria aviso visual com botões diretos caso bloqueador de downloads atue
-    const bannerId = 'pdfDownloadSuccessBanner';
-    const oldBanner = document.getElementById(bannerId);
-    if (oldBanner) oldBanner.remove();
-
-    const banner = document.createElement('div');
-    banner.id = bannerId;
-    banner.style.cssText = 'background: linear-gradient(135deg, #059669, #047857); color: #ffffff; padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #10b981; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: 0 4px 12px rgba(0,0,0,0.25);';
-    banner.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 22px;">✅</span>
-        <div>
-          <div style="font-weight: 800; font-size: 13px; color: #ffffff;">Relatório PDF Gerado com Sucesso!</div>
-          <div style="font-size: 11px; opacity: 0.95; color: #e2e8f0;">Se o seu navegador não salvou automaticamente, use as opções:</div>
-        </div>
-      </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <a href="${fileUrl}" download="${filename}" class="btn" style="background: #ffffff; color: #065f46; font-weight: 800; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-          📥 Baixar Arquivo PDF
-        </a>
-        <a href="${fileUrl}" target="_blank" class="btn" style="background: rgba(255,255,255,0.2); color: #ffffff; font-weight: 700; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,0.3);">
-          👁️ Abrir / Visualizar
-        </a>
-      </div>
-    `;
-
-    const reportArea = document.getElementById('printableReportArea');
-    if (reportArea && reportArea.parentNode) {
-      reportArea.parentNode.insertBefore(banner, reportArea);
-    }
-
+    container.remove();
+    console.log('[PDF Anual] Download concluído com sucesso!');
     showToast(`PDF do ano ${selectedYear} gerado com sucesso!`, 'success');
   } catch (err) {
-    console.error('Erro na exportação de PDF:', err);
+    console.error('[PDF Anual] Erro na geração de PDF:', err);
+    alert('Erro ao gerar relatório em PDF: ' + err.message + '\n\nO sistema abrirá a janela de impressão/salvar em PDF.');
     showToast('Abrindo visualização de impressão/salvar em PDF...', 'warning');
     window.print();
   } finally {
+    const tempEl = document.getElementById('tempPdfRenderContainer');
+    if (tempEl) tempEl.remove();
     setButtonsLoading(false);
   }
 }
@@ -4564,6 +4596,7 @@ function getGeneralReportPdfTemplateHtml() {
 }
 
 async function downloadGeneralReportPdf() {
+  console.log('[PDF Geral] Início do processo de download do Relatório Geral em PDF...');
   const btns = document.querySelectorAll('.btn-download-general-report');
   const originalContents = [];
   btns.forEach((b, i) => {
@@ -4582,15 +4615,34 @@ async function downloadGeneralReportPdf() {
 
   try {
     if (typeof html2pdf === 'undefined') {
+      console.log('[PDF Geral] html2pdf não encontrado no escopo global. Carregando local e CDN...');
       await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        s.onload = resolve;
-        s.onerror = () => reject(new Error('Não foi possível carregar a biblioteca html2pdf via CDN.'));
-        document.head.appendChild(s);
+        const s1 = document.createElement('script');
+        s1.src = 'html2pdf.bundle.min.js';
+        s1.onload = () => {
+          console.log('[PDF Geral] html2pdf carregado via arquivo local.');
+          resolve();
+        };
+        s1.onerror = () => {
+          console.log('[PDF Geral] Falha ao carregar local. Tentando CDN...');
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+          s2.onload = () => {
+            console.log('[PDF Geral] html2pdf carregado via CDN.');
+            resolve();
+          };
+          s2.onerror = () => reject(new Error('Não foi possível carregar a biblioteca html2pdf (nem local nem via CDN).'));
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s1);
       });
     }
 
+    if (typeof html2pdf === 'undefined') {
+      throw new Error('A biblioteca html2pdf não está disponível.');
+    }
+
+    console.log('[PDF Geral] Montando container de renderização do relatório geral...');
     const container = document.createElement('div');
     container.id = 'tempGeneralPdfRenderContainer';
     container.style.position = 'fixed';
@@ -4624,51 +4676,51 @@ async function downloadGeneralReportPdf() {
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
-    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-    container.remove();
+    console.log('[PDF Geral] Disparando download automático via html2pdf().save()...');
+    await html2pdf().set(opt).from(container).save();
 
-    const fileUrl = URL.createObjectURL(pdfBlob);
-
-    // 1. Download programático automático
+    // Fallback adicional criando Blob e link direto na interface
     try {
-      const a = document.createElement('a');
-      a.href = fileUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => a.remove(), 1000);
-    } catch(e) {
-      console.warn('Download direto bloqueado pelo navegador:', e);
+      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+      if (pdfBlob) {
+        const fileUrl = URL.createObjectURL(pdfBlob);
+        const listContainer = document.getElementById('clientsListContainer');
+        if (listContainer) {
+          const oldAlert = document.getElementById('generalPdfSuccessAlert');
+          if (oldAlert) oldAlert.remove();
+
+          const alertDiv = document.createElement('div');
+          alertDiv.id = 'generalPdfSuccessAlert';
+          alertDiv.style.cssText = 'background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; color: #ffffff;';
+          alertDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>✅</span>
+              <span><strong>Relatório em PDF Gerado:</strong> ${filename}</span>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <a href="${fileUrl}" download="${filename}" style="background: var(--green-primary); color: #072611; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none;">📥 Baixar Novamente</a>
+              <a href="${fileUrl}" target="_blank" style="background: rgba(255,255,255,0.1); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);">👁️ Abrir / Visualizar</a>
+            </div>
+          `;
+          listContainer.prepend(alertDiv);
+          setTimeout(() => alertDiv.remove(), 20000);
+        }
+      }
+    } catch(bErr) {
+      console.warn('[PDF Geral] Aviso no fallback de blob:', bErr);
     }
 
-    // 2. Banner de confirmação com link caso navegador bloqueie popup
-    const listContainer = document.getElementById('clientsListContainer');
-    if (listContainer) {
-      const oldAlert = document.getElementById('generalPdfSuccessAlert');
-      if (oldAlert) oldAlert.remove();
-
-      const alertDiv = document.createElement('div');
-      alertDiv.id = 'generalPdfSuccessAlert';
-      alertDiv.style.cssText = 'background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; color: #ffffff;';
-      alertDiv.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span>✅</span>
-          <span><strong>Relatório em PDF Gerado:</strong> ${filename}</span>
-        </div>
-        <div style="display: flex; gap: 6px;">
-          <a href="${fileUrl}" download="${filename}" style="background: var(--green-primary); color: #072611; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none;">📥 Baixar Arquivo</a>
-          <a href="${fileUrl}" target="_blank" style="background: rgba(255,255,255,0.1); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);">👁️ Abrir / Visualizar</a>
-        </div>
-      `;
-      listContainer.prepend(alertDiv);
-      setTimeout(() => alertDiv.remove(), 15000);
-    }
-
+    container.remove();
+    console.log('[PDF Geral] Download concluído com sucesso!');
     showToast('Relatório Geral em PDF baixado com sucesso!', 'success');
   } catch (err) {
-    console.error('Erro na exportação de PDF geral:', err);
+    console.error('[PDF Geral] Erro na exportação de PDF geral:', err);
+    alert('Erro ao gerar relatório geral em PDF: ' + err.message + '\n\nO sistema abrirá a janela de impressão/salvar em PDF.');
     showToast('Erro ao gerar PDF: ' + err.message, 'error');
+    window.print();
   } finally {
+    const tempEl = document.getElementById('tempGeneralPdfRenderContainer');
+    if (tempEl) tempEl.remove();
     btns.forEach((b, i) => {
       b.disabled = false;
       b.innerHTML = originalContents[i];

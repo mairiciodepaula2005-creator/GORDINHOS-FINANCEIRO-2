@@ -1314,30 +1314,36 @@ function getAvailableProfitYears() {
 }
 
 function openAnnualProfitReportModal(requestedYear) {
-  const availableYears = getAvailableProfitYears();
-  const parsedReq = parseInt(requestedYear, 10);
-  const parsedDash = parseInt(selectedProfitYear, 10);
+  console.log('[Relatório Anual] Clique em Exportar Relatório detectado. Abrindo modal para o ano:', requestedYear);
+  try {
+    const availableYears = getAvailableProfitYears();
+    const parsedReq = parseInt(requestedYear, 10);
+    const parsedDash = parseInt(selectedProfitYear, 10);
 
-  if (!isNaN(parsedReq) && availableYears.includes(parsedReq)) {
-    selectedAnnualReportYear = parsedReq;
-  } else if (!isNaN(parsedDash) && availableYears.includes(parsedDash)) {
-    selectedAnnualReportYear = parsedDash;
-  } else {
-    selectedAnnualReportYear = availableYears[0] || new Date().getFullYear();
+    if (!isNaN(parsedReq) && availableYears.includes(parsedReq)) {
+      selectedAnnualReportYear = parsedReq;
+    } else if (!isNaN(parsedDash) && availableYears.includes(parsedDash)) {
+      selectedAnnualReportYear = parsedDash;
+    } else {
+      selectedAnnualReportYear = availableYears[0] || new Date().getFullYear();
+    }
+
+    const yearSelect = document.getElementById('annualReportSelectYear');
+    if (yearSelect) {
+      let optionsHtml = '';
+      availableYears.forEach(y => {
+        optionsHtml += `<option value="${y}" ${y === selectedAnnualReportYear ? 'selected' : ''}>Exercício ${y}</option>`;
+      });
+      yearSelect.innerHTML = optionsHtml;
+      yearSelect.value = selectedAnnualReportYear;
+    }
+
+    renderAnnualProfitReport(selectedAnnualReportYear);
+    openModal('modalAnnualProfitReport');
+  } catch (err) {
+    console.error('[Relatório Anual] Erro ao abrir modal de relatório:', err);
+    alert('Erro ao abrir relatório: ' + err.message);
   }
-
-  const yearSelect = document.getElementById('annualReportSelectYear');
-  if (yearSelect) {
-    let optionsHtml = '';
-    availableYears.forEach(y => {
-      optionsHtml += `<option value="${y}" ${y === selectedAnnualReportYear ? 'selected' : ''}>Exercício ${y}</option>`;
-    });
-    yearSelect.innerHTML = optionsHtml;
-    yearSelect.value = selectedAnnualReportYear;
-  }
-
-  renderAnnualProfitReport(selectedAnnualReportYear);
-  openModal('modalAnnualProfitReport');
 }
 
 function renderAnnualProfitReport(year) {
@@ -2110,7 +2116,10 @@ function getAnnualReportPdfTemplateHtml(year) {
 }
 
 async function downloadAnnualProfitReportPDF(year) {
+  console.log('[PDF Anual] Iniciando geração do relatório PDF...');
   const selectedYear = parseInt(year, 10) || selectedAnnualReportYear || new Date().getFullYear();
+  console.log('[PDF Anual] Ano selecionado:', selectedYear);
+
   const btnPdf = document.getElementById('btnDownloadAnnualReportPdf');
   const btnFooterPdf = document.getElementById('btnModalFooterDownloadPdf');
   const originalBtnContent = btnPdf ? btnPdf.innerHTML : '';
@@ -2141,15 +2150,34 @@ async function downloadAnnualProfitReportPDF(year) {
 
   try {
     if (typeof html2pdf === 'undefined') {
+      console.log('[PDF Anual] html2pdf não encontrado no escopo global. Tentando carregar local e CDN...');
       await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        s.onload = resolve;
-        s.onerror = () => reject(new Error('Biblioteca html2pdf indisponível.'));
-        document.head.appendChild(s);
+        const s1 = document.createElement('script');
+        s1.src = 'html2pdf.bundle.min.js';
+        s1.onload = () => {
+          console.log('[PDF Anual] html2pdf carregado via arquivo local.');
+          resolve();
+        };
+        s1.onerror = () => {
+          console.log('[PDF Anual] Falha ao carregar local. Tentando CDN...');
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+          s2.onload = () => {
+            console.log('[PDF Anual] html2pdf carregado via CDN.');
+            resolve();
+          };
+          s2.onerror = () => reject(new Error('Biblioteca html2pdf não pôde ser carregada nem localmente nem via CDN.'));
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s1);
       });
     }
 
+    if (typeof html2pdf === 'undefined') {
+      throw new Error('A biblioteca html2pdf não está disponível.');
+    }
+
+    console.log('[PDF Anual] Montando container de renderização do relatório...');
     const container = document.createElement('div');
     container.id = 'tempPdfRenderContainer';
     container.style.position = 'fixed';
@@ -2182,60 +2210,59 @@ async function downloadAnnualProfitReportPDF(year) {
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-    container.remove();
+    console.log('[PDF Anual] Disparando download automático via html2pdf().save()...');
+    await html2pdf().set(opt).from(container).save();
 
-    const fileUrl = URL.createObjectURL(pdfBlob);
-
-    // 1. Tenta download programático
+    // Fallback adicional criando Blob e link direto na interface
     try {
-      const a = document.createElement('a');
-      a.href = fileUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => a.remove(), 1000);
-    } catch(e) {
-      console.warn('Download direto bloqueado pelo navegador:', e);
+      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+      if (pdfBlob) {
+        const fileUrl = URL.createObjectURL(pdfBlob);
+        const bannerId = 'pdfDownloadSuccessBanner';
+        const oldBanner = document.getElementById(bannerId);
+        if (oldBanner) oldBanner.remove();
+
+        const banner = document.createElement('div');
+        banner.id = bannerId;
+        banner.style.cssText = 'background: linear-gradient(135deg, #059669, #047857); color: #ffffff; padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #10b981; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: 0 4px 12px rgba(0,0,0,0.25);';
+        banner.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 22px;">✅</span>
+            <div>
+              <div style="font-weight: 800; font-size: 13px; color: #ffffff;">Relatório PDF Gerado com Sucesso!</div>
+              <div style="font-size: 11px; opacity: 0.95; color: #e2e8f0;">Se o seu navegador não salvou automaticamente, use as opções:</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="${fileUrl}" download="${filename}" class="btn" style="background: #ffffff; color: #065f46; font-weight: 800; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+              📥 Baixar Novamente
+            </a>
+            <a href="${fileUrl}" target="_blank" class="btn" style="background: rgba(255,255,255,0.2); color: #ffffff; font-weight: 700; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,0.3);">
+              👁️ Abrir / Visualizar
+            </a>
+          </div>
+        `;
+
+        const reportArea = document.getElementById('printableReportArea');
+        if (reportArea && reportArea.parentNode) {
+          reportArea.parentNode.insertBefore(banner, reportArea);
+        }
+      }
+    } catch (bErr) {
+      console.warn('[PDF Anual] Aviso no fallback de blob:', bErr);
     }
 
-    // 2. Cria aviso visual com botões diretos caso bloqueador de downloads atue
-    const bannerId = 'pdfDownloadSuccessBanner';
-    const oldBanner = document.getElementById(bannerId);
-    if (oldBanner) oldBanner.remove();
-
-    const banner = document.createElement('div');
-    banner.id = bannerId;
-    banner.style.cssText = 'background: linear-gradient(135deg, #059669, #047857); color: #ffffff; padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #10b981; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: 0 4px 12px rgba(0,0,0,0.25);';
-    banner.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 22px;">✅</span>
-        <div>
-          <div style="font-weight: 800; font-size: 13px; color: #ffffff;">Relatório PDF Gerado com Sucesso!</div>
-          <div style="font-size: 11px; opacity: 0.95; color: #e2e8f0;">Se o seu navegador não salvou automaticamente, use as opções:</div>
-        </div>
-      </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <a href="${fileUrl}" download="${filename}" class="btn" style="background: #ffffff; color: #065f46; font-weight: 800; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-          📥 Baixar Arquivo PDF
-        </a>
-        <a href="${fileUrl}" target="_blank" class="btn" style="background: rgba(255,255,255,0.2); color: #ffffff; font-weight: 700; font-size: 12px; padding: 7px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,0.3);">
-          👁️ Abrir / Visualizar
-        </a>
-      </div>
-    `;
-
-    const reportArea = document.getElementById('printableReportArea');
-    if (reportArea && reportArea.parentNode) {
-      reportArea.parentNode.insertBefore(banner, reportArea);
-    }
-
+    container.remove();
+    console.log('[PDF Anual] Download concluído com sucesso!');
     showToast(`PDF do ano ${selectedYear} gerado com sucesso!`, 'success');
   } catch (err) {
-    console.error('Erro na exportação de PDF:', err);
+    console.error('[PDF Anual] Erro na geração de PDF:', err);
+    alert('Erro ao gerar relatório em PDF: ' + err.message + '\n\nO sistema abrirá a janela de impressão/salvar em PDF.');
     showToast('Abrindo visualização de impressão/salvar em PDF...', 'warning');
     window.print();
   } finally {
+    const tempEl = document.getElementById('tempPdfRenderContainer');
+    if (tempEl) tempEl.remove();
     setButtonsLoading(false);
   }
 }
@@ -2461,6 +2488,7 @@ function getGeneralReportPdfTemplateHtml() {
 }
 
 async function downloadGeneralReportPdf() {
+  console.log('[PDF Geral] Início do processo de download do Relatório Geral em PDF...');
   const btns = document.querySelectorAll('.btn-download-general-report');
   const originalContents = [];
   btns.forEach((b, i) => {
@@ -2479,15 +2507,34 @@ async function downloadGeneralReportPdf() {
 
   try {
     if (typeof html2pdf === 'undefined') {
+      console.log('[PDF Geral] html2pdf não encontrado no escopo global. Carregando local e CDN...');
       await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        s.onload = resolve;
-        s.onerror = () => reject(new Error('Não foi possível carregar a biblioteca html2pdf via CDN.'));
-        document.head.appendChild(s);
+        const s1 = document.createElement('script');
+        s1.src = 'html2pdf.bundle.min.js';
+        s1.onload = () => {
+          console.log('[PDF Geral] html2pdf carregado via arquivo local.');
+          resolve();
+        };
+        s1.onerror = () => {
+          console.log('[PDF Geral] Falha ao carregar local. Tentando CDN...');
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+          s2.onload = () => {
+            console.log('[PDF Geral] html2pdf carregado via CDN.');
+            resolve();
+          };
+          s2.onerror = () => reject(new Error('Não foi possível carregar a biblioteca html2pdf (nem local nem via CDN).'));
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s1);
       });
     }
 
+    if (typeof html2pdf === 'undefined') {
+      throw new Error('A biblioteca html2pdf não está disponível.');
+    }
+
+    console.log('[PDF Geral] Montando container de renderização do relatório geral...');
     const container = document.createElement('div');
     container.id = 'tempGeneralPdfRenderContainer';
     container.style.position = 'fixed';
@@ -2521,51 +2568,51 @@ async function downloadGeneralReportPdf() {
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
-    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-    container.remove();
+    console.log('[PDF Geral] Disparando download automático via html2pdf().save()...');
+    await html2pdf().set(opt).from(container).save();
 
-    const fileUrl = URL.createObjectURL(pdfBlob);
-
-    // 1. Download programático automático
+    // Fallback adicional criando Blob e link direto na interface
     try {
-      const a = document.createElement('a');
-      a.href = fileUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => a.remove(), 1000);
-    } catch(e) {
-      console.warn('Download direto bloqueado pelo navegador:', e);
+      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+      if (pdfBlob) {
+        const fileUrl = URL.createObjectURL(pdfBlob);
+        const listContainer = document.getElementById('clientsListContainer');
+        if (listContainer) {
+          const oldAlert = document.getElementById('generalPdfSuccessAlert');
+          if (oldAlert) oldAlert.remove();
+
+          const alertDiv = document.createElement('div');
+          alertDiv.id = 'generalPdfSuccessAlert';
+          alertDiv.style.cssText = 'background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; color: #ffffff;';
+          alertDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>✅</span>
+              <span><strong>Relatório em PDF Gerado:</strong> ${filename}</span>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <a href="${fileUrl}" download="${filename}" style="background: var(--green-primary); color: #072611; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none;">📥 Baixar Novamente</a>
+              <a href="${fileUrl}" target="_blank" style="background: rgba(255,255,255,0.1); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);">👁️ Abrir / Visualizar</a>
+            </div>
+          `;
+          listContainer.prepend(alertDiv);
+          setTimeout(() => alertDiv.remove(), 20000);
+        }
+      }
+    } catch(bErr) {
+      console.warn('[PDF Geral] Aviso no fallback de blob:', bErr);
     }
 
-    // 2. Banner de confirmação com link caso navegador bloqueie popup
-    const listContainer = document.getElementById('clientsListContainer');
-    if (listContainer) {
-      const oldAlert = document.getElementById('generalPdfSuccessAlert');
-      if (oldAlert) oldAlert.remove();
-
-      const alertDiv = document.createElement('div');
-      alertDiv.id = 'generalPdfSuccessAlert';
-      alertDiv.style.cssText = 'background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; color: #ffffff;';
-      alertDiv.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span>✅</span>
-          <span><strong>Relatório em PDF Gerado:</strong> ${filename}</span>
-        </div>
-        <div style="display: flex; gap: 6px;">
-          <a href="${fileUrl}" download="${filename}" style="background: var(--green-primary); color: #072611; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none;">📥 Baixar Arquivo</a>
-          <a href="${fileUrl}" target="_blank" style="background: rgba(255,255,255,0.1); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);">👁️ Abrir / Visualizar</a>
-        </div>
-      `;
-      listContainer.prepend(alertDiv);
-      setTimeout(() => alertDiv.remove(), 15000);
-    }
-
+    container.remove();
+    console.log('[PDF Geral] Download concluído com sucesso!');
     showToast('Relatório Geral em PDF baixado com sucesso!', 'success');
   } catch (err) {
-    console.error('Erro na exportação de PDF geral:', err);
+    console.error('[PDF Geral] Erro na exportação de PDF geral:', err);
+    alert('Erro ao gerar relatório geral em PDF: ' + err.message + '\n\nO sistema abrirá a janela de impressão/salvar em PDF.');
     showToast('Erro ao gerar PDF: ' + err.message, 'error');
+    window.print();
   } finally {
+    const tempEl = document.getElementById('tempGeneralPdfRenderContainer');
+    if (tempEl) tempEl.remove();
     btns.forEach((b, i) => {
       b.disabled = false;
       b.innerHTML = originalContents[i];
