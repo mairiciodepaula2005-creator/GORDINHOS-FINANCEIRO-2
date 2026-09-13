@@ -2244,6 +2244,335 @@ function printAnnualProfitReport() {
   window.print();
 }
 
+function formatPhoneForPdf(phone) {
+  if (!phone) return '';
+  const clean = String(phone).replace(/\D/g, '');
+  if (clean.length === 11) {
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
+  } else if (clean.length === 10) {
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
+  }
+  return phone;
+}
+
+function getGeneralReportPdfTemplateHtml() {
+  const now = new Date();
+  const dateEmissionStr = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR');
+
+  const validDebtors = (debtors || []).filter(d => d && typeof d === 'object' && d.name);
+
+  let totalPrincipal = 0;
+  let totalReceivable = 0;
+  let totalExpectedProfit = 0;
+  let totalRealizedProfit = 0;
+  let countOnTime = 0;
+  let countDueToday = 0;
+  let countOverdue = 0;
+  let countCompleted = 0;
+
+  const rowsHtml = validDebtors.map((d, index) => {
+    normalizeDebtor(d);
+    const info = evaluateDebtorStatus(d);
+
+    const principal = parseFloat(d.principal) || 0;
+    const totalAmount = parseFloat(d.totalAmount) || 0;
+    const remaining = info.remainingBalance;
+    const expectedProfit = Math.max(0, totalAmount - principal);
+
+    totalPrincipal += principal;
+    totalReceivable += remaining;
+    totalExpectedProfit += expectedProfit;
+
+    const instList = Array.isArray(d.installments) ? d.installments : [];
+    const count = parseInt(d.installmentsCount, 10) || (instList.length > 0 ? instList.length : 1) || 1;
+    const profitPerInst = count > 0 ? expectedProfit / count : 0;
+    instList.forEach(i => {
+      if (i && i.paid) totalRealizedProfit += profitPerInst;
+    });
+    if (Array.isArray(d.interestPayments)) {
+      d.interestPayments.forEach(r => {
+        totalRealizedProfit += parseFloat(r.amount) || 0;
+      });
+    }
+
+    if (info.status === 'overdue') countOverdue++;
+    else if (info.status === 'due_today') countDueToday++;
+    else if (info.status === 'completed') countCompleted++;
+    else countOnTime++;
+
+    let nextDueStr = '-';
+    if (info.nextInstallment && info.nextInstallment.dueDate) {
+      nextDueStr = formatDateBR(info.nextInstallment.dueDate);
+    } else if (instList.length > 0) {
+      nextDueStr = formatDateBR(instList[instList.length - 1].dueDate);
+    }
+
+    const typeStr = d.isDaily ? 'Diária' : 'Mensal';
+    const instProgress = `${info.paidCount}/${info.totalCount}`;
+
+    let statusBadge = '';
+    if (info.status === 'overdue') {
+      statusBadge = `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: 800; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;">VENCIDO (${info.daysOverdue}d)</span>`;
+    } else if (info.status === 'due_today') {
+      statusBadge = `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: 800; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;">VENCE HOJE</span>`;
+    } else if (info.status === 'completed') {
+      statusBadge = `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: 800; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">QUITADO</span>`;
+    } else {
+      statusBadge = `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: 800; background: #dcfce7; color: #166534; border: 1px solid #86efac;">EM DIA</span>`;
+    }
+
+    const rowBg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+    const phoneDisplay = formatPhoneForPdf(d.phone);
+
+    return `
+      <tr style="background: ${rowBg}; border-bottom: 1px solid #e2e8f0; page-break-inside: avoid;">
+        <td style="padding: 6px 5px; text-align: center; color: #64748b; font-size: 8.5px;">${index + 1}</td>
+        <td style="padding: 6px 6px;">
+          <div style="font-weight: 700; color: #0f172a; font-size: 9.5px;">${d.name}</div>
+          ${phoneDisplay ? `<div style="font-size: 8px; color: #64748b; margin-top: 1px;">📞 ${phoneDisplay}</div>` : ''}
+        </td>
+        <td style="padding: 6px 5px; text-align: center; color: #334155; font-size: 8.5px;">
+          <div>${typeStr}</div>
+          <div style="font-size: 8px; color: #64748b;">${instProgress} parc.</div>
+        </td>
+        <td style="padding: 6px 6px; text-align: right; font-weight: 600; color: #334155; font-size: 9px;">${formatCurrency(principal)}</td>
+        <td style="padding: 6px 6px; text-align: right; font-weight: 700; color: #065f46; font-size: 9px;">${formatCurrency(remaining)}</td>
+        <td style="padding: 6px 6px; text-align: right; font-weight: 600; color: #047857; font-size: 9px;">${formatCurrency(expectedProfit)}</td>
+        <td style="padding: 6px 5px; text-align: center; color: #334155; font-size: 8.5px;">${nextDueStr}</td>
+        <td style="padding: 6px 5px; text-align: center;">${statusBadge}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div style="width: 794px; min-height: 1120px; box-sizing: border-box; padding: 24px 28px; background: #ffffff; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.35;">
+      
+      <!-- CABEÇALHO DO DOCUMENTO COM DATA/HORA DA EMISSÃO -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #059669; padding-bottom: 12px; margin-bottom: 14px;">
+        <div>
+          <div style="font-size: 20px; font-weight: 900; color: #065f46; letter-spacing: -0.5px;">
+            🏦 GORDINHOS FINANCEIRO
+          </div>
+          <div style="font-size: 13px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">
+            Relatório Geral de Empréstimos & Cobranças
+          </div>
+          <div style="font-size: 9.5px; color: #64748b; margin-top: 2px;">
+            Controle de Carteira • Resumo Financeiro Consolidado
+          </div>
+        </div>
+        <div style="text-align: right; font-size: 9.5px; color: #64748b;">
+          <div>Data/Hora da Emissão:</div>
+          <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-top: 1px;">${dateEmissionStr}</div>
+          <div style="margin-top: 3px; font-size: 9px; color: #059669; font-weight: 700;">
+            ${validDebtors.length} ${validDebtors.length === 1 ? 'cliente cadastrado' : 'clientes cadastrados'}
+          </div>
+        </div>
+      </div>
+
+      <!-- CARDS DE RESUMO GERAL (TOTAL EMPRESTADO, TOTAL A RECEBER, LUCRO ESPERADO) -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px;">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #0284c7; border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 8.5px; font-weight: 800; color: #0284c7; text-transform: uppercase; letter-spacing: 0.5px;">
+            Total Emprestado (Principal)
+          </div>
+          <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-top: 3px;">
+            ${formatCurrency(totalPrincipal)}
+          </div>
+          <div style="font-size: 8.5px; color: #64748b; margin-top: 2px;">
+            Capital ativo em circulação
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #059669; border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 8.5px; font-weight: 800; color: #059669; text-transform: uppercase; letter-spacing: 0.5px;">
+            Total a Receber (Saldo Pendente)
+          </div>
+          <div style="font-size: 16px; font-weight: 900; color: #065f46; margin-top: 3px;">
+            ${formatCurrency(totalReceivable)}
+          </div>
+          <div style="font-size: 8.5px; color: #64748b; margin-top: 2px;">
+            Retorno bruto a receber
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 8.5px; font-weight: 800; color: #10b981; text-transform: uppercase; letter-spacing: 0.5px;">
+            Lucro Esperado (Previsto)
+          </div>
+          <div style="font-size: 16px; font-weight: 900; color: #047857; margin-top: 3px;">
+            ${formatCurrency(totalExpectedProfit)}
+          </div>
+          <div style="font-size: 8.5px; color: #64748b; margin-top: 2px;">
+            Projeção de retorno contratada
+          </div>
+        </div>
+      </div>
+
+      <!-- SITUAÇÃO DA CARTEIRA DE CLIENTES -->
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 12px; margin-bottom: 14px; font-size: 9px; color: #334155;">
+        <div><strong style="color: #0f172a;">Situação da Carteira:</strong></div>
+        <div style="display: flex; gap: 14px;">
+          <span style="color: #166534;">🟢 Em Dia: <strong>${countOnTime}</strong></span>
+          <span style="color: #854d0e;">🟡 Vence Hoje: <strong>${countDueToday}</strong></span>
+          <span style="color: #991b1b;">🔴 Em Atraso: <strong>${countOverdue}</strong></span>
+          <span style="color: #475569;">⚪ Quitados: <strong>${countCompleted}</strong></span>
+          <span style="color: #2563eb;">💰 Lucro Realizado: <strong>${formatCurrency(totalRealizedProfit)}</strong></span>
+        </div>
+      </div>
+
+      <!-- TABELA FORMATADA COM A LISTA DE CLIENTES, PARCELAS, VENCIMENTOS E STATUS -->
+      <div style="margin-bottom: 14px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 9px; border: 1px solid #cbd5e1; page-break-inside: auto;">
+          <thead>
+            <tr style="background: #0f172a; color: #ffffff; border-bottom: 2px solid #0f172a;">
+              <th style="padding: 7px 5px; text-align: center; width: 28px; font-size: 8.5px; font-weight: 800; text-transform: uppercase;">#</th>
+              <th style="padding: 7px 6px; text-align: left; font-size: 8.5px; font-weight: 800; text-transform: uppercase;">Cliente / Contato</th>
+              <th style="padding: 7px 5px; text-align: center; width: 75px; font-size: 8.5px; font-weight: 800; text-transform: uppercase;">Modalidade</th>
+              <th style="padding: 7px 6px; text-align: right; width: 85px; font-size: 8.5px; font-weight: 800; text-transform: uppercase;">Emprestado</th>
+              <th style="padding: 7px 6px; text-align: right; width: 90px; font-size: 8.5px; font-weight: 800; text-transform: uppercase;">Saldo Devedor</th>
+              <th style="padding: 7px 6px; text-align: right; width: 80px; font-size: 8.5px; font-weight: 800; text-transform: uppercase;">Lucro Prev.</th>
+              <th style="padding: 7px 5px; text-align: center; width: 80px; font-size: 8.5px; font-weight: 800; text-transform: uppercase;">Vencimento</th>
+              <th style="padding: 7px 5px; text-align: center; width: 85px; font-size: 8.5px; font-weight: 800; text-transform: uppercase;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="8" style="padding: 16px; text-align: center; color: #64748b;">Nenhum cliente cadastrado no sistema.</td></tr>'}
+          </tbody>
+          <tfoot>
+            <tr style="background: #e2e8f0; font-weight: 800; color: #0f172a; border-top: 2px solid #cbd5e1; page-break-inside: avoid;">
+              <td colspan="3" style="padding: 7px 6px; text-align: right; font-size: 9px;">TOTAIS GERAIS (${validDebtors.length} clientes):</td>
+              <td style="padding: 7px 6px; text-align: right; font-size: 9px;">${formatCurrency(totalPrincipal)}</td>
+              <td style="padding: 7px 6px; text-align: right; color: #065f46; font-size: 9px;">${formatCurrency(totalReceivable)}</td>
+              <td style="padding: 7px 6px; text-align: right; color: #047857; font-size: 9px;">${formatCurrency(totalExpectedProfit)}</td>
+              <td colspan="2" style="padding: 7px 5px; text-align: center; font-size: 8.5px; color: #475569;">${countOverdue} em atraso</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- RODAPÉ DO DOCUMENTO FORMATO A4 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 8.5px; color: #94a3b8;">
+        <div>Gordinhos Financeiro • Sistema de Gestão Financeira e Cobranças</div>
+        <div>Documento oficial gerado em ${dateEmissionStr} • Formato A4</div>
+      </div>
+
+    </div>
+  `;
+}
+
+async function downloadGeneralReportPdf() {
+  const btns = document.querySelectorAll('.btn-download-general-report');
+  const originalContents = [];
+  btns.forEach((b, i) => {
+    originalContents[i] = b.innerHTML;
+    b.disabled = true;
+    b.innerHTML = `
+      <svg class="spin-animation" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation: spin 1s linear infinite;">
+        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path>
+      </svg>
+      <span>Gerando PDF...</span>
+    `;
+  });
+
+  showToast('Gerando Relatório Geral em PDF... Aguarde um instante.', 'info');
+
+  try {
+    if (typeof html2pdf === 'undefined') {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Não foi possível carregar a biblioteca html2pdf via CDN.'));
+        document.head.appendChild(s);
+      });
+    }
+
+    const container = document.createElement('div');
+    container.id = 'tempGeneralPdfRenderContainer';
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = '794px';
+    container.style.background = '#ffffff';
+    container.style.color = '#0f172a';
+    container.style.zIndex = '999999';
+    container.style.boxSizing = 'border-box';
+    container.style.padding = '0';
+    container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+    container.innerHTML = getGeneralReportPdfTemplateHtml();
+    document.body.appendChild(container);
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `Relatorio_Geral_Financeiro_${dateStr}.pdf`;
+    const opt = {
+      margin: [8, 8, 8, 8],
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 1.5,
+        useCORS: true,
+        letterRendering: true,
+        scrollY: 0,
+        windowWidth: 794
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+    container.remove();
+
+    const fileUrl = URL.createObjectURL(pdfBlob);
+
+    // 1. Download programático automático
+    try {
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 1000);
+    } catch(e) {
+      console.warn('Download direto bloqueado pelo navegador:', e);
+    }
+
+    // 2. Banner de confirmação com link caso navegador bloqueie popup
+    const listContainer = document.getElementById('clientsListContainer');
+    if (listContainer) {
+      const oldAlert = document.getElementById('generalPdfSuccessAlert');
+      if (oldAlert) oldAlert.remove();
+
+      const alertDiv = document.createElement('div');
+      alertDiv.id = 'generalPdfSuccessAlert';
+      alertDiv.style.cssText = 'background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; color: #ffffff;';
+      alertDiv.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span>✅</span>
+          <span><strong>Relatório em PDF Gerado:</strong> ${filename}</span>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <a href="${fileUrl}" download="${filename}" style="background: var(--green-primary); color: #072611; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none;">📥 Baixar Arquivo</a>
+          <a href="${fileUrl}" target="_blank" style="background: rgba(255,255,255,0.1); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);">👁️ Abrir / Visualizar</a>
+        </div>
+      `;
+      listContainer.prepend(alertDiv);
+      setTimeout(() => alertDiv.remove(), 15000);
+    }
+
+    showToast('Relatório Geral em PDF baixado com sucesso!', 'success');
+  } catch (err) {
+    console.error('Erro na exportação de PDF geral:', err);
+    showToast('Erro ao gerar PDF: ' + err.message, 'error');
+  } finally {
+    btns.forEach((b, i) => {
+      b.disabled = false;
+      b.innerHTML = originalContents[i];
+    });
+  }
+}
+
 /**
  * Renderiza a lista de clientes idêntica à foto
  */
@@ -3564,6 +3893,10 @@ function setupEventListeners() {
       const id = row.dataset.id;
       openInstallmentsModal(id);
     }
+  });
+
+  document.querySelectorAll('.btn-download-general-report').forEach(btn => {
+    btn.addEventListener('click', downloadGeneralReportPdf);
   });
 
   // Ações do Action Sheet

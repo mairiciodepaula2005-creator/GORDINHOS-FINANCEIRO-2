@@ -1,0 +1,65 @@
+﻿<!DOCTYPE html>
+<html>
+<body>
+  <iframe id="appFrame" src="http://localhost:8080/index.html" width="1200" height="900"></iframe>
+  <div id="logs"></div>
+  <script>
+    function log(msg) {
+      document.getElementById('logs').innerText += '\n' + msg;
+      console.log(msg);
+    }
+
+    var frame = document.getElementById('appFrame');
+    frame.onload = function() {
+      var w = frame.contentWindow;
+      var d = frame.contentDocument;
+
+      w.addEventListener('error', function(e) {
+        log('FRAME_ERROR: ' + e.message + ' at ' + e.filename + ':' + e.lineno);
+      });
+
+      // Wait 3 seconds for Firebase data
+      setTimeout(async function() {
+        try {
+          log('1. Debtors count: ' + (w.debtors ? w.debtors.length : 'undefined'));
+          
+          var btnPdfClientes = d.getElementById('btnDownloadGeneralPdf');
+          var btnPdfMais = d.getElementById('btnDownloadGeneralPdfFromMais');
+          log('2. btnDownloadGeneralPdf exists: ' + !!btnPdfClientes);
+          log('3. btnDownloadGeneralPdfFromMais exists: ' + !!btnPdfMais);
+          log('4. html2pdf is function/object: ' + (typeof w.html2pdf));
+          log('5. downloadGeneralReportPdf is function: ' + (typeof w.downloadGeneralReportPdf));
+          log('6. getGeneralReportPdfTemplateHtml is function: ' + (typeof w.getGeneralReportPdfTemplateHtml));
+
+          if (w.getGeneralReportPdfTemplateHtml) {
+            var tpl = w.getGeneralReportPdfTemplateHtml();
+            log('7. Template length: ' + (tpl ? tpl.length : 0));
+            log('8. Template contains header: ' + (tpl && tpl.indexOf('RELATÃ“RIO GERAL DE CARTEIRA') !== -1));
+            log('9. Template contains summary cards: ' + (tpl && tpl.indexOf('TOTAL EMPRESTADO') !== -1 && tpl.indexOf('TOTAL A RECEBER') !== -1));
+            log('10. Template contains table headers: ' + (tpl && tpl.indexOf('PRÃ“X. VENCIMENTO') !== -1));
+          }
+
+          if (btnPdfClientes) {
+            log('11. Clicking btnDownloadGeneralPdf...');
+            btnPdfClientes.click();
+
+            setTimeout(function() {
+              log('12. Button text after click: ' + btnPdfClientes.innerText.trim());
+              log('13. Button disabled status: ' + btnPdfClientes.disabled);
+              var toastEl = d.getElementById('toastContainer');
+              log('14. Toast content: ' + (toastEl ? toastEl.innerText : 'none'));
+              log('DONE_TEST');
+            }, 5000);
+          } else {
+            log('ERROR: btnPdfClientes not found!');
+            log('DONE_TEST');
+          }
+        } catch(err) {
+          log('CATCH_ERROR: ' + err.toString() + ' ' + (err.stack || ''));
+          log('DONE_TEST');
+        }
+      }, 3000);
+    };
+  </script>
+</body>
+</html>
