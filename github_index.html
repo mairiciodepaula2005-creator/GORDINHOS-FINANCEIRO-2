@@ -1680,6 +1680,12 @@ body {
             <span id="actionBtnPayInterestText">Receber Só Juros (Renovar)</span>
           </button>
 
+          <!-- Renovar Contrato (Alterar Valor / Novo Ciclo) -->
+          <button type="button" id="actionBtnRenewContract" class="sheet-action-btn" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>Renovar Contrato (Alterar Valor)</span>
+          </button>
+
           <!-- Ver Todas as Parcelas -->
           <button type="button" id="actionBtnViewInstallments" class="sheet-action-btn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
@@ -1717,8 +1723,12 @@ body {
         </div>
       </div>
 
-      <div class="modal-sheet-footer">
-        <button type="button" class="btn-new-client" data-close="modalInstallments" style="margin-top: 0; background: var(--bg-input); border: 1px solid var(--border-subtle); color: #ffffff;">
+      <div class="modal-sheet-footer" style="display: flex; gap: 0.5rem;">
+        <button type="button" id="btnInstModalRenewContract" class="btn-new-client" style="margin-top: 0; flex: 1.2; justify-content: center; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.4); color: #c084fc; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Renovar Contrato
+        </button>
+        <button type="button" class="btn-new-client" data-close="modalInstallments" style="margin-top: 0; flex: 1; justify-content: center; background: var(--bg-input); border: 1px solid var(--border-subtle); color: #ffffff;">
           Fechar
         </button>
       </div>
@@ -1809,6 +1819,133 @@ body {
         <button type="button" id="interestModalConfirmBtn" class="btn-new-client" style="margin-top: 0; flex: 2; background: var(--green-primary); color: #072611; font-weight: 700; justify-content: center; display: flex; align-items: center; gap: 6px;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
           Confirmar Recebimento
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL DE RENOVAÇÃO DE CONTRATO (ALTERAÇÃO DE VALOR)
+       ==================================================================== -->
+  <div class="modal-overlay" id="modalRenewContract" style="z-index: 1060;">
+    <div class="modal-sheet-content" style="max-height: 90vh;">
+      <div class="modal-sheet-header">
+        <div>
+          <h3 class="modal-sheet-title" style="display: flex; align-items: center; gap: 0.45rem; color: #c084fc;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>Renovar Contrato</span>
+          </h3>
+          <p id="renewModalSubtitle" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Novo ciclo e repactuação de valor</p>
+        </div>
+        <button type="button" class="modal-sheet-close" data-close="modalRenewContract">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="modal-sheet-body" style="padding: 0.85rem 1rem;">
+        <!-- Card de Situação do Contrato Atual -->
+        <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 8px; padding: 0.75rem 0.85rem; margin-bottom: 0.9rem; font-size: 0.8rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="color: var(--text-muted); font-size: 0.74rem;">Situação do Contrato Anterior:</span>
+            <span id="renewCurrentStatusBadge" class="status-pill">ATIVO</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 3px;">
+            <span style="color: var(--text-muted);">Principal Original:</span>
+            <strong id="renewCurrentPrincipalText" style="color: #ffffff;">R$ 0,00</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 3px;">
+            <span style="color: var(--text-muted);">Saldo Devedor Restante:</span>
+            <strong id="renewCurrentRemainingText" style="color: #f87171;">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <!-- Campo: Novo Valor Principal (com atalhos rápidos) -->
+        <div class="form-group" style="margin-bottom: 0.85rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label class="form-label" for="renewPrincipalInput" style="margin-bottom: 0.25rem;">Novo Valor Emprestado (Principal) *</label>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" id="btnRenewUseRemaining" style="background: rgba(248, 113, 113, 0.15); border: 1px solid rgba(248, 113, 113, 0.3); color: #f87171; border-radius: 4px; padding: 2px 6px; font-size: 0.68rem; cursor: pointer; display: none;">Usar Saldo</button>
+              <button type="button" id="btnRenewUseOriginal" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); color: #c084fc; border-radius: 4px; padding: 2px 6px; font-size: 0.68rem; cursor: pointer;">Repetir Valor</button>
+            </div>
+          </div>
+          <div class="input-with-symbol">
+            <span class="currency-symbol">R$</span>
+            <input type="number" id="renewPrincipalInput" class="form-control" placeholder="0,00" step="0.01" min="1" required style="font-size: 1.05rem; font-weight: 700; color: #ffffff;">
+          </div>
+          <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">
+            Informe o novo valor do contrato (pode ser maior, menor ou igual ao anterior).
+          </p>
+        </div>
+
+        <!-- Linha: Taxa de Juros (%) e Data de Início -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="renewInterestRateInput">Taxa de Juros (%) *</label>
+            <input type="number" id="renewInterestRateInput" class="form-control" placeholder="30" step="0.1" min="0" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="renewStartDateInput">Data de Início *</label>
+            <input type="date" id="renewStartDateInput" class="form-control" required>
+          </div>
+        </div>
+
+        <!-- Modalidade: Diária ou Mensal -->
+        <div class="form-group" style="margin-bottom: 0.85rem;">
+          <label class="checkbox-container" style="margin-bottom: 0.5rem;">
+            <input type="checkbox" id="renewIsDailyCheckbox">
+            <span class="checkbox-checkmark"></span>
+            <span class="checkbox-label" style="font-weight: 600;">Empréstimo em Diária (Cobrança Diária)</span>
+          </label>
+        </div>
+
+        <!-- Parcelas / Dias -->
+        <div class="form-group" id="renewMonthlyGroup" style="margin-bottom: 0.85rem;">
+          <label class="form-label" for="renewInstallmentsInput">Quantidade de Parcelas (Meses)</label>
+          <input type="number" id="renewInstallmentsInput" class="form-control" min="1" max="60" value="1">
+        </div>
+
+        <div class="form-group" id="renewDailyGroup" style="margin-bottom: 0.85rem; display: none;">
+          <label class="form-label" for="renewDailyDaysInput">Quantidade de Dias</label>
+          <input type="number" id="renewDailyDaysInput" class="form-control" min="1" max="365" value="30">
+        </div>
+
+        <!-- Observações da Renovação -->
+        <div class="form-group" style="margin-bottom: 0.85rem;">
+          <label class="form-label" for="renewNotesInput">Observação da Renovação (Opcional)</label>
+          <input type="text" id="renewNotesInput" class="form-control" placeholder="Ex: Renovação com aditivo de valor">
+        </div>
+
+        <!-- Live Preview / Simulação da Renovação -->
+        <div class="preview-box" style="margin-top: 0.5rem; border-color: rgba(168, 85, 247, 0.3);">
+          <div class="preview-title" style="color: #c084fc; display: flex; align-items: center; gap: 4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="3"></rect><path d="M7 8h10M7 12h10M7 16h10"/></svg>
+            Simulação do Novo Contrato
+          </div>
+          <div class="preview-grid" style="grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
+            <div class="preview-item">
+              <span class="preview-label">Lucro / Juros:</span>
+              <span class="preview-value" id="renewPreviewInterest" style="color: var(--green-primary);">R$ 0,00</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Total a Receber:</span>
+              <span class="preview-value" id="renewPreviewTotal" style="color: #60a5fa;">R$ 0,00</span>
+            </div>
+            <div class="preview-item" style="grid-column: span 2;">
+              <span class="preview-label">Parcelamento:</span>
+              <span class="preview-value" id="renewPreviewInstallment" style="color: #ffffff; font-size: 0.95rem;">1x de R$ 0,00</span>
+            </div>
+          </div>
+          <p id="renewPreviewDetailText" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.4rem;"></p>
+        </div>
+      </div>
+
+      <div class="modal-sheet-footer" style="display: flex; gap: 0.5rem;">
+        <button type="button" class="sheet-action-btn" data-close="modalRenewContract" style="margin-top: 0; flex: 1; justify-content: center;">
+          Cancelar
+        </button>
+        <button type="button" id="btnConfirmRenewContract" class="btn-new-client" style="margin-top: 0; flex: 1.8; background: #9333ea; border-color: #7e22ce; color: #ffffff; font-weight: 700; justify-content: center; display: flex; align-items: center; gap: 6px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          Confirmar Renovação
         </button>
       </div>
     </div>
@@ -2507,6 +2644,12 @@ function normalizeDebtor(d) {
   if (!Array.isArray(d.interestPayments)) {
     d.interestPayments = [];
   }
+  if (d.contractRenewals && typeof d.contractRenewals === 'object' && !Array.isArray(d.contractRenewals)) {
+    d.contractRenewals = Object.values(d.contractRenewals);
+  }
+  if (!Array.isArray(d.contractRenewals)) {
+    d.contractRenewals = [];
+  }
   return d;
 }
 
@@ -3095,6 +3238,56 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
           });
         }
       }
+    });
+
+    // 1b. Parcelas baixadas de contratos anteriores arquivados (d.contractRenewals)
+    const pastRenewals = Array.isArray(d.contractRenewals) ? d.contractRenewals : [];
+    pastRenewals.forEach((pRen, rIdx) => {
+      const pastInsts = Array.isArray(pRen.previousInstallments) ? pRen.previousInstallments : [];
+      const pastPrincipal = parseFloat(pRen.previousPrincipal) || 0;
+      const pastTotal = parseFloat(pRen.previousTotalAmount) || 0;
+      const pastCount = parseInt(pRen.previousInstallmentsCount, 10) || (pastInsts.length > 0 ? pastInsts.length : 1) || 1;
+      const pastRate = parseFloat(pRen.previousInterestRate) || 0;
+
+      let pastProfitPerInst = 0;
+      if (pastTotal > pastPrincipal && pastCount > 0) {
+        pastProfitPerInst = (pastTotal - pastPrincipal) / pastCount;
+      } else if (pastPrincipal > 0 && pastRate > 0) {
+        pastProfitPerInst = pRen.previousIsDaily ? (pastPrincipal * (pastRate / 100)) / pastCount : (pastPrincipal * (pastRate / 100));
+      }
+      pastProfitPerInst = Math.round(pastProfitPerInst * 100) / 100;
+
+      pastInsts.forEach(inst => {
+        if (inst && (inst.paid === true || inst.paid === 'true')) {
+          let thisPastProfit = pastProfitPerInst;
+          if (thisPastProfit <= 0 && inst.amount && pastPrincipal > 0 && pastCount > 0) {
+            const instAmt = parseFloat(inst.amount) || 0;
+            thisPastProfit = Math.max(0, Math.round((instAmt - (pastPrincipal / pastCount)) * 100) / 100);
+          }
+          const dateStr = inst.dueDate || inst.paidAt || pRen.renewedAt || getTodayString();
+          const { year: y, month: m } = extractYearMonth(dateStr);
+
+          const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
+          const matchesMonth = filterMonth === 'all' || String(m) === String(filterMonth);
+
+          if (matchesYear && matchesMonth) {
+            entries.push({
+              debtorId: d.id,
+              debtorName: d.name,
+              type: 'installment',
+              typeLabel: `Baixa Parcela #${inst.number} (Contrato Anterior #${rIdx + 1})`,
+              installmentNumber: inst.number,
+              installmentAmount: inst.amount,
+              profit: thisPastProfit,
+              date: dateStr,
+              dueDate: inst.dueDate,
+              paidAt: inst.paidAt,
+              year: y,
+              month: m
+            });
+          }
+        }
+      });
     });
 
     // 2. Renovações de Só Juros (d.interestPayments)
@@ -4881,6 +5074,39 @@ function openInstallmentsModal(debtorId) {
     container.appendChild(card);
   });
 
+  if (Array.isArray(debtor.contractRenewals) && debtor.contractRenewals.length > 0) {
+    const renSection = document.createElement('div');
+    renSection.style.marginTop = '0.75rem';
+    renSection.style.padding = '0.65rem 0.8rem';
+    renSection.style.background = 'rgba(168, 85, 247, 0.08)';
+    renSection.style.border = '1px solid rgba(168, 85, 247, 0.2)';
+    renSection.style.borderRadius = '8px';
+    renSection.style.fontSize = '0.75rem';
+    renSection.innerHTML = `
+      <div style="font-weight: 700; color: #c084fc; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        Histórico de Contratos Anteriores (${debtor.contractRenewals.length})
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); margin-top: 4px;">
+        ${debtor.contractRenewals.map((r, idx) => `
+          <div style="padding: 4px 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+            • <strong>Contrato #${idx + 1}:</strong> ${formatCurrency(r.previousPrincipal || 0)} (${r.previousInstallmentsCount || 1}x) - Renovado em ${formatDateBR(r.renewedAt)}
+            ${r.renewalNotes ? `<span style="color: #cbd5e1; font-style: italic;"> (${escapeHTML(r.renewalNotes)})</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+    container.appendChild(renSection);
+  }
+
+  const instRenewBtn = document.getElementById('btnInstModalRenewContract');
+  if (instRenewBtn) {
+    instRenewBtn.onclick = () => {
+      closeModal('modalInstallments');
+      openRenewContractModal(debtor.id);
+    };
+  }
+
   openModal('modalInstallments');
 }
 
@@ -5147,6 +5373,257 @@ function payInterestOnlyForInstallment(installmentNumber) {
   }
 
   openPayInterestOnlyModal(debtor, inst);
+}
+
+let activeDebtorForRenew = null;
+
+function openRenewContractModal(debtorId) {
+  const debtor = (debtorId ? debtors.find(d => d.id === debtorId) : null) || activeDebtorForAction;
+  if (!debtor) return;
+  normalizeDebtor(debtor);
+  activeDebtorForRenew = debtor;
+
+  const statusInfo = evaluateDebtorStatus(debtor);
+
+  const subEl = document.getElementById('renewModalSubtitle');
+  if (subEl) subEl.textContent = `${debtor.name} • Novo ciclo de empréstimo`;
+
+  const badgeEl = document.getElementById('renewCurrentStatusBadge');
+  if (badgeEl) {
+    badgeEl.className = `status-pill ${statusInfo.pillClass}`;
+    badgeEl.textContent = statusInfo.label;
+  }
+
+  const origPrinEl = document.getElementById('renewCurrentPrincipalText');
+  if (origPrinEl) origPrinEl.textContent = formatCurrency(debtor.principal || 0);
+
+  const remBalEl = document.getElementById('renewCurrentRemainingText');
+  if (remBalEl) remBalEl.textContent = formatCurrency(statusInfo.remainingBalance || 0);
+
+  const btnUseRem = document.getElementById('btnRenewUseRemaining');
+  if (btnUseRem) {
+    if (statusInfo.remainingBalance > 0) {
+      btnUseRem.style.display = 'inline-block';
+      btnUseRem.onclick = () => {
+        document.getElementById('renewPrincipalInput').value = statusInfo.remainingBalance.toFixed(2);
+        updateRenewContractLivePreview();
+      };
+    } else {
+      btnUseRem.style.display = 'none';
+    }
+  }
+
+  const btnUseOrig = document.getElementById('btnRenewUseOriginal');
+  if (btnUseOrig) {
+    btnUseOrig.onclick = () => {
+      document.getElementById('renewPrincipalInput').value = (parseFloat(debtor.principal) || 0).toFixed(2);
+      updateRenewContractLivePreview();
+    };
+  }
+
+  // Preenche o valor sugerido (saldo restante se > 0, senão valor original)
+  const suggestedPrincipal = statusInfo.remainingBalance > 0 ? statusInfo.remainingBalance : (parseFloat(debtor.principal) || 0);
+  const prinInput = document.getElementById('renewPrincipalInput');
+  if (prinInput) prinInput.value = suggestedPrincipal > 0 ? suggestedPrincipal.toFixed(2) : '';
+
+  const intInput = document.getElementById('renewInterestRateInput');
+  if (intInput) intInput.value = (parseFloat(debtor.interestRate) || 30).toString();
+
+  const startDateInput = document.getElementById('renewStartDateInput');
+  if (startDateInput) {
+    startDateInput.value = getTodayString();
+  }
+
+  const isDailyChk = document.getElementById('renewIsDailyCheckbox');
+  if (isDailyChk) {
+    isDailyChk.checked = !!debtor.isDaily;
+  }
+
+  const instInput = document.getElementById('renewInstallmentsInput');
+  if (instInput) {
+    instInput.value = debtor.isDaily ? '1' : (debtor.installmentsCount || '1').toString();
+  }
+
+  const daysInput = document.getElementById('renewDailyDaysInput');
+  if (daysInput) {
+    daysInput.value = debtor.isDaily ? (debtor.installmentsCount || '30').toString() : '30';
+  }
+
+  const notesInput = document.getElementById('renewNotesInput');
+  if (notesInput) {
+    notesInput.value = '';
+  }
+
+  toggleRenewDailyMode();
+  updateRenewContractLivePreview();
+
+  openModal('modalRenewContract');
+}
+
+function toggleRenewDailyMode() {
+  const isDailyChk = document.getElementById('renewIsDailyCheckbox');
+  const monthlyGroup = document.getElementById('renewMonthlyGroup');
+  const dailyGroup = document.getElementById('renewDailyGroup');
+  const isDaily = isDailyChk ? isDailyChk.checked : false;
+
+  if (monthlyGroup && dailyGroup) {
+    if (isDaily) {
+      monthlyGroup.style.display = 'none';
+      dailyGroup.style.display = 'block';
+    } else {
+      monthlyGroup.style.display = 'block';
+      dailyGroup.style.display = 'none';
+    }
+  }
+  updateRenewContractLivePreview();
+}
+
+function updateRenewContractLivePreview() {
+  const prinInput = document.getElementById('renewPrincipalInput');
+  const intInput = document.getElementById('renewInterestRateInput');
+  const isDailyChk = document.getElementById('renewIsDailyCheckbox');
+  const instInput = document.getElementById('renewInstallmentsInput');
+  const daysInput = document.getElementById('renewDailyDaysInput');
+  const dateInput = document.getElementById('renewStartDateInput');
+
+  const principal = parseFloat(prinInput ? prinInput.value : 0) || 0;
+  const interestRate = parseFloat(intInput ? intInput.value : 0) || 0;
+  const isDaily = isDailyChk ? isDailyChk.checked : false;
+  const startDate = dateInput ? dateInput.value : '';
+
+  let installmentsCount = 1;
+  let totalInterest = 0;
+  let totalAmount = 0;
+  let installmentVal = 0;
+
+  if (isDaily) {
+    installmentsCount = parseInt(daysInput ? daysInput.value : 30, 10) || 1;
+    totalInterest = principal * (interestRate / 100);
+    totalAmount = principal + totalInterest;
+    installmentVal = totalAmount / installmentsCount;
+  } else {
+    installmentsCount = parseInt(instInput ? instInput.value : 1, 10) || 1;
+    totalInterest = principal * (interestRate / 100) * installmentsCount;
+    totalAmount = principal + totalInterest;
+    installmentVal = totalAmount / installmentsCount;
+  }
+
+  const previewInterest = document.getElementById('renewPreviewInterest');
+  if (previewInterest) previewInterest.textContent = formatCurrency(totalInterest);
+
+  const previewTotal = document.getElementById('renewPreviewTotal');
+  if (previewTotal) previewTotal.textContent = formatCurrency(totalAmount);
+
+  const previewInst = document.getElementById('renewPreviewInstallment');
+  if (previewInst) {
+    previewInst.textContent = `${installmentsCount}x de ${formatCurrency(installmentVal)}`;
+  }
+
+  const previewDetail = document.getElementById('renewPreviewDetailText');
+  if (previewDetail) {
+    const modeText = isDaily ? `Diária: ${installmentsCount} dias` : `Mensal: ${installmentsCount}x parcelas`;
+    const firstDue = startDate ? (isDaily ? addDays(startDate, 0) : addMonths(new Date(startDate.split('-').map(Number)[0], startDate.split('-').map(Number)[1] - 1, startDate.split('-').map(Number)[2]), 0)) : '--';
+    previewDetail.textContent = `${modeText} (${interestRate}% ao mês). Primeiro vencimento: ${startDate ? formatDateBR(firstDue) : '--'}`;
+  }
+}
+
+function confirmRenewContract() {
+  if (!activeDebtorForRenew) {
+    alert('Cliente não selecionado.');
+    return;
+  }
+  const debtor = debtors.find(d => d.id === activeDebtorForRenew.id) || activeDebtorForRenew;
+  normalizeDebtor(debtor);
+
+  const principal = parseFloat(document.getElementById('renewPrincipalInput').value);
+  const interestRate = parseFloat(document.getElementById('renewInterestRateInput').value);
+  const isDaily = document.getElementById('renewIsDailyCheckbox').checked;
+  const startDate = document.getElementById('renewStartDateInput').value;
+  const notes = document.getElementById('renewNotesInput').value.trim();
+
+  if (isNaN(principal) || principal <= 0) {
+    alert('Por favor, informe um valor principal válido maior que zero.');
+    return;
+  }
+  if (isNaN(interestRate) || interestRate < 0) {
+    alert('Por favor, informe uma taxa de juros válida.');
+    return;
+  }
+  if (!startDate) {
+    alert('Por favor, informe a data de início do novo contrato.');
+    return;
+  }
+
+  let installmentsCount = 1;
+  let totalAmount = 0;
+  let installments = [];
+
+  if (isDaily) {
+    const days = parseInt(document.getElementById('renewDailyDaysInput').value, 10);
+    if (isNaN(days) || days <= 0) {
+      alert('Informe a quantidade de dias para a diária.');
+      return;
+    }
+    installmentsCount = days;
+    const totalInterest = principal * (interestRate / 100);
+    totalAmount = Math.round((principal + totalInterest) * 100) / 100;
+    installments = generateDailyInstallments(principal, totalAmount, installmentsCount, startDate);
+  } else {
+    const months = parseInt(document.getElementById('renewInstallmentsInput').value, 10);
+    if (isNaN(months) || months <= 0) {
+      alert('Informe a quantidade de parcelas.');
+      return;
+    }
+    installmentsCount = months;
+    const totalInterest = principal * (interestRate / 100) * installmentsCount;
+    totalAmount = Math.round((principal + totalInterest) * 100) / 100;
+    installments = generateMonthlyInstallments(principal, totalAmount, installmentsCount, startDate);
+  }
+
+  const installmentAmount = Math.round((totalAmount / installmentsCount) * 100) / 100;
+
+  // Arquiva o contrato anterior no histórico para preservação contábil
+  if (!Array.isArray(debtor.contractRenewals)) {
+    debtor.contractRenewals = [];
+  }
+
+  const statusInfo = evaluateDebtorStatus(debtor);
+  debtor.contractRenewals.push({
+    id: 'ren_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    renewedAt: new Date().toISOString(),
+    previousPrincipal: debtor.principal,
+    previousTotalAmount: debtor.totalAmount,
+    previousInstallmentAmount: debtor.installmentAmount,
+    previousInterestRate: debtor.interestRate,
+    previousInstallmentsCount: debtor.installmentsCount,
+    previousIsDaily: !!debtor.isDaily,
+    previousStartDate: debtor.startDate,
+    previousRemainingBalance: statusInfo.remainingBalance,
+    previousStatus: statusInfo.status,
+    previousInstallments: Array.isArray(debtor.installments) ? JSON.parse(JSON.stringify(debtor.installments)) : [],
+    renewalNotes: notes || ''
+  });
+
+  // Atualiza os dados do cliente para o novo contrato
+  debtor.principal = principal;
+  debtor.interestRate = interestRate;
+  debtor.isDaily = isDaily;
+  debtor.installmentsCount = installmentsCount;
+  debtor.startDate = startDate;
+  debtor.totalAmount = totalAmount;
+  debtor.installmentAmount = installmentAmount;
+  debtor.installments = installments;
+  if (notes) {
+    debtor.notes = (debtor.notes ? debtor.notes + ' | ' : '') + `[Renovação ${formatDateBR(startDate)}]: ${notes}`;
+  }
+  debtor.lastRenewedAt = new Date().toISOString();
+
+  saveData();
+  render();
+  closeModal('modalRenewContract');
+
+  showToast(`Contrato de ${debtor.name} renovado com sucesso no valor de ${formatCurrency(principal)}!`, 'success');
+  triggerGoogleSheetsAutoSync();
 }
 
 function deleteActiveDebtor() {
@@ -5840,6 +6317,61 @@ function setupEventListeners() {
     }
   });
   document.getElementById('actionBtnDelete').addEventListener('click', deleteActiveDebtor);
+
+  const renewBtn = document.getElementById('actionBtnRenewContract');
+  if (renewBtn) {
+    renewBtn.addEventListener('click', () => {
+      if (activeDebtorForAction) {
+        closeModal('modalActionSheet');
+        openRenewContractModal(activeDebtorForAction.id);
+      }
+    });
+  }
+
+  const instRenewBtn = document.getElementById('btnInstModalRenewContract');
+  if (instRenewBtn) {
+    instRenewBtn.addEventListener('click', () => {
+      if (activeDebtorForAction) {
+        closeModal('modalInstallments');
+        openRenewContractModal(activeDebtorForAction.id);
+      }
+    });
+  }
+
+  const confirmRenewBtn = document.getElementById('btnConfirmRenewContract');
+  if (confirmRenewBtn) {
+    confirmRenewBtn.addEventListener('click', confirmRenewContract);
+  }
+
+  const renewPrincipalInput = document.getElementById('renewPrincipalInput');
+  if (renewPrincipalInput) {
+    renewPrincipalInput.addEventListener('input', updateRenewContractLivePreview);
+  }
+
+  const renewInterestInput = document.getElementById('renewInterestRateInput');
+  if (renewInterestInput) {
+    renewInterestInput.addEventListener('input', updateRenewContractLivePreview);
+  }
+
+  const renewStartDateInput = document.getElementById('renewStartDateInput');
+  if (renewStartDateInput) {
+    renewStartDateInput.addEventListener('change', updateRenewContractLivePreview);
+  }
+
+  const renewIsDailyChk = document.getElementById('renewIsDailyCheckbox');
+  if (renewIsDailyChk) {
+    renewIsDailyChk.addEventListener('change', toggleRenewDailyMode);
+  }
+
+  const renewInstallmentsInput = document.getElementById('renewInstallmentsInput');
+  if (renewInstallmentsInput) {
+    renewInstallmentsInput.addEventListener('input', updateRenewContractLivePreview);
+  }
+
+  const renewDailyDaysInput = document.getElementById('renewDailyDaysInput');
+  if (renewDailyDaysInput) {
+    renewDailyDaysInput.addEventListener('input', updateRenewContractLivePreview);
+  }
 
   const interestConfirmBtn = document.getElementById('interestModalConfirmBtn');
   if (interestConfirmBtn) {

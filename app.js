@@ -406,6 +406,12 @@ function normalizeDebtor(d) {
   if (!Array.isArray(d.interestPayments)) {
     d.interestPayments = [];
   }
+  if (d.contractRenewals && typeof d.contractRenewals === 'object' && !Array.isArray(d.contractRenewals)) {
+    d.contractRenewals = Object.values(d.contractRenewals);
+  }
+  if (!Array.isArray(d.contractRenewals)) {
+    d.contractRenewals = [];
+  }
   return d;
 }
 
@@ -1002,6 +1008,56 @@ function getRealizedProfitEntries(filterYear, filterMonth) {
           });
         }
       }
+    });
+
+    // 1b. Parcelas baixadas de contratos anteriores arquivados (d.contractRenewals)
+    const pastRenewals = Array.isArray(d.contractRenewals) ? d.contractRenewals : [];
+    pastRenewals.forEach((pRen, rIdx) => {
+      const pastInsts = Array.isArray(pRen.previousInstallments) ? pRen.previousInstallments : [];
+      const pastPrincipal = parseFloat(pRen.previousPrincipal) || 0;
+      const pastTotal = parseFloat(pRen.previousTotalAmount) || 0;
+      const pastCount = parseInt(pRen.previousInstallmentsCount, 10) || (pastInsts.length > 0 ? pastInsts.length : 1) || 1;
+      const pastRate = parseFloat(pRen.previousInterestRate) || 0;
+
+      let pastProfitPerInst = 0;
+      if (pastTotal > pastPrincipal && pastCount > 0) {
+        pastProfitPerInst = (pastTotal - pastPrincipal) / pastCount;
+      } else if (pastPrincipal > 0 && pastRate > 0) {
+        pastProfitPerInst = pRen.previousIsDaily ? (pastPrincipal * (pastRate / 100)) / pastCount : (pastPrincipal * (pastRate / 100));
+      }
+      pastProfitPerInst = Math.round(pastProfitPerInst * 100) / 100;
+
+      pastInsts.forEach(inst => {
+        if (inst && (inst.paid === true || inst.paid === 'true')) {
+          let thisPastProfit = pastProfitPerInst;
+          if (thisPastProfit <= 0 && inst.amount && pastPrincipal > 0 && pastCount > 0) {
+            const instAmt = parseFloat(inst.amount) || 0;
+            thisPastProfit = Math.max(0, Math.round((instAmt - (pastPrincipal / pastCount)) * 100) / 100);
+          }
+          const dateStr = inst.dueDate || inst.paidAt || pRen.renewedAt || getTodayString();
+          const { year: y, month: m } = extractYearMonth(dateStr);
+
+          const matchesYear = filterYear === 'all' || String(y) === String(filterYear);
+          const matchesMonth = filterMonth === 'all' || String(m) === String(filterMonth);
+
+          if (matchesYear && matchesMonth) {
+            entries.push({
+              debtorId: d.id,
+              debtorName: d.name,
+              type: 'installment',
+              typeLabel: `Baixa Parcela #${inst.number} (Contrato Anterior #${rIdx + 1})`,
+              installmentNumber: inst.number,
+              installmentAmount: inst.amount,
+              profit: thisPastProfit,
+              date: dateStr,
+              dueDate: inst.dueDate,
+              paidAt: inst.paidAt,
+              year: y,
+              month: m
+            });
+          }
+        }
+      });
     });
 
     // 2. Renovações de Só Juros (d.interestPayments)
@@ -2800,6 +2856,39 @@ function openInstallmentsModal(debtorId) {
     container.appendChild(card);
   });
 
+  if (Array.isArray(debtor.contractRenewals) && debtor.contractRenewals.length > 0) {
+    const renSection = document.createElement('div');
+    renSection.style.marginTop = '0.75rem';
+    renSection.style.padding = '0.65rem 0.8rem';
+    renSection.style.background = 'rgba(168, 85, 247, 0.08)';
+    renSection.style.border = '1px solid rgba(168, 85, 247, 0.2)';
+    renSection.style.borderRadius = '8px';
+    renSection.style.fontSize = '0.75rem';
+    renSection.innerHTML = `
+      <div style="font-weight: 700; color: #c084fc; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        Histórico de Contratos Anteriores (${debtor.contractRenewals.length})
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); margin-top: 4px;">
+        ${debtor.contractRenewals.map((r, idx) => `
+          <div style="padding: 4px 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+            • <strong>Contrato #${idx + 1}:</strong> ${formatCurrency(r.previousPrincipal || 0)} (${r.previousInstallmentsCount || 1}x) - Renovado em ${formatDateBR(r.renewedAt)}
+            ${r.renewalNotes ? `<span style="color: #cbd5e1; font-style: italic;"> (${escapeHTML(r.renewalNotes)})</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+    container.appendChild(renSection);
+  }
+
+  const instRenewBtn = document.getElementById('btnInstModalRenewContract');
+  if (instRenewBtn) {
+    instRenewBtn.onclick = () => {
+      closeModal('modalInstallments');
+      openRenewContractModal(debtor.id);
+    };
+  }
+
   openModal('modalInstallments');
 }
 
@@ -3066,6 +3155,257 @@ function payInterestOnlyForInstallment(installmentNumber) {
   }
 
   openPayInterestOnlyModal(debtor, inst);
+}
+
+let activeDebtorForRenew = null;
+
+function openRenewContractModal(debtorId) {
+  const debtor = (debtorId ? debtors.find(d => d.id === debtorId) : null) || activeDebtorForAction;
+  if (!debtor) return;
+  normalizeDebtor(debtor);
+  activeDebtorForRenew = debtor;
+
+  const statusInfo = evaluateDebtorStatus(debtor);
+
+  const subEl = document.getElementById('renewModalSubtitle');
+  if (subEl) subEl.textContent = `${debtor.name} • Novo ciclo de empréstimo`;
+
+  const badgeEl = document.getElementById('renewCurrentStatusBadge');
+  if (badgeEl) {
+    badgeEl.className = `status-pill ${statusInfo.pillClass}`;
+    badgeEl.textContent = statusInfo.label;
+  }
+
+  const origPrinEl = document.getElementById('renewCurrentPrincipalText');
+  if (origPrinEl) origPrinEl.textContent = formatCurrency(debtor.principal || 0);
+
+  const remBalEl = document.getElementById('renewCurrentRemainingText');
+  if (remBalEl) remBalEl.textContent = formatCurrency(statusInfo.remainingBalance || 0);
+
+  const btnUseRem = document.getElementById('btnRenewUseRemaining');
+  if (btnUseRem) {
+    if (statusInfo.remainingBalance > 0) {
+      btnUseRem.style.display = 'inline-block';
+      btnUseRem.onclick = () => {
+        document.getElementById('renewPrincipalInput').value = statusInfo.remainingBalance.toFixed(2);
+        updateRenewContractLivePreview();
+      };
+    } else {
+      btnUseRem.style.display = 'none';
+    }
+  }
+
+  const btnUseOrig = document.getElementById('btnRenewUseOriginal');
+  if (btnUseOrig) {
+    btnUseOrig.onclick = () => {
+      document.getElementById('renewPrincipalInput').value = (parseFloat(debtor.principal) || 0).toFixed(2);
+      updateRenewContractLivePreview();
+    };
+  }
+
+  // Preenche o valor sugerido (saldo restante se > 0, senão valor original)
+  const suggestedPrincipal = statusInfo.remainingBalance > 0 ? statusInfo.remainingBalance : (parseFloat(debtor.principal) || 0);
+  const prinInput = document.getElementById('renewPrincipalInput');
+  if (prinInput) prinInput.value = suggestedPrincipal > 0 ? suggestedPrincipal.toFixed(2) : '';
+
+  const intInput = document.getElementById('renewInterestRateInput');
+  if (intInput) intInput.value = (parseFloat(debtor.interestRate) || 30).toString();
+
+  const startDateInput = document.getElementById('renewStartDateInput');
+  if (startDateInput) {
+    startDateInput.value = getTodayString();
+  }
+
+  const isDailyChk = document.getElementById('renewIsDailyCheckbox');
+  if (isDailyChk) {
+    isDailyChk.checked = !!debtor.isDaily;
+  }
+
+  const instInput = document.getElementById('renewInstallmentsInput');
+  if (instInput) {
+    instInput.value = debtor.isDaily ? '1' : (debtor.installmentsCount || '1').toString();
+  }
+
+  const daysInput = document.getElementById('renewDailyDaysInput');
+  if (daysInput) {
+    daysInput.value = debtor.isDaily ? (debtor.installmentsCount || '30').toString() : '30';
+  }
+
+  const notesInput = document.getElementById('renewNotesInput');
+  if (notesInput) {
+    notesInput.value = '';
+  }
+
+  toggleRenewDailyMode();
+  updateRenewContractLivePreview();
+
+  openModal('modalRenewContract');
+}
+
+function toggleRenewDailyMode() {
+  const isDailyChk = document.getElementById('renewIsDailyCheckbox');
+  const monthlyGroup = document.getElementById('renewMonthlyGroup');
+  const dailyGroup = document.getElementById('renewDailyGroup');
+  const isDaily = isDailyChk ? isDailyChk.checked : false;
+
+  if (monthlyGroup && dailyGroup) {
+    if (isDaily) {
+      monthlyGroup.style.display = 'none';
+      dailyGroup.style.display = 'block';
+    } else {
+      monthlyGroup.style.display = 'block';
+      dailyGroup.style.display = 'none';
+    }
+  }
+  updateRenewContractLivePreview();
+}
+
+function updateRenewContractLivePreview() {
+  const prinInput = document.getElementById('renewPrincipalInput');
+  const intInput = document.getElementById('renewInterestRateInput');
+  const isDailyChk = document.getElementById('renewIsDailyCheckbox');
+  const instInput = document.getElementById('renewInstallmentsInput');
+  const daysInput = document.getElementById('renewDailyDaysInput');
+  const dateInput = document.getElementById('renewStartDateInput');
+
+  const principal = parseFloat(prinInput ? prinInput.value : 0) || 0;
+  const interestRate = parseFloat(intInput ? intInput.value : 0) || 0;
+  const isDaily = isDailyChk ? isDailyChk.checked : false;
+  const startDate = dateInput ? dateInput.value : '';
+
+  let installmentsCount = 1;
+  let totalInterest = 0;
+  let totalAmount = 0;
+  let installmentVal = 0;
+
+  if (isDaily) {
+    installmentsCount = parseInt(daysInput ? daysInput.value : 30, 10) || 1;
+    totalInterest = principal * (interestRate / 100);
+    totalAmount = principal + totalInterest;
+    installmentVal = totalAmount / installmentsCount;
+  } else {
+    installmentsCount = parseInt(instInput ? instInput.value : 1, 10) || 1;
+    totalInterest = principal * (interestRate / 100) * installmentsCount;
+    totalAmount = principal + totalInterest;
+    installmentVal = totalAmount / installmentsCount;
+  }
+
+  const previewInterest = document.getElementById('renewPreviewInterest');
+  if (previewInterest) previewInterest.textContent = formatCurrency(totalInterest);
+
+  const previewTotal = document.getElementById('renewPreviewTotal');
+  if (previewTotal) previewTotal.textContent = formatCurrency(totalAmount);
+
+  const previewInst = document.getElementById('renewPreviewInstallment');
+  if (previewInst) {
+    previewInst.textContent = `${installmentsCount}x de ${formatCurrency(installmentVal)}`;
+  }
+
+  const previewDetail = document.getElementById('renewPreviewDetailText');
+  if (previewDetail) {
+    const modeText = isDaily ? `Diária: ${installmentsCount} dias` : `Mensal: ${installmentsCount}x parcelas`;
+    const firstDue = startDate ? (isDaily ? addDays(startDate, 0) : addMonths(new Date(startDate.split('-').map(Number)[0], startDate.split('-').map(Number)[1] - 1, startDate.split('-').map(Number)[2]), 0)) : '--';
+    previewDetail.textContent = `${modeText} (${interestRate}% ao mês). Primeiro vencimento: ${startDate ? formatDateBR(firstDue) : '--'}`;
+  }
+}
+
+function confirmRenewContract() {
+  if (!activeDebtorForRenew) {
+    alert('Cliente não selecionado.');
+    return;
+  }
+  const debtor = debtors.find(d => d.id === activeDebtorForRenew.id) || activeDebtorForRenew;
+  normalizeDebtor(debtor);
+
+  const principal = parseFloat(document.getElementById('renewPrincipalInput').value);
+  const interestRate = parseFloat(document.getElementById('renewInterestRateInput').value);
+  const isDaily = document.getElementById('renewIsDailyCheckbox').checked;
+  const startDate = document.getElementById('renewStartDateInput').value;
+  const notes = document.getElementById('renewNotesInput').value.trim();
+
+  if (isNaN(principal) || principal <= 0) {
+    alert('Por favor, informe um valor principal válido maior que zero.');
+    return;
+  }
+  if (isNaN(interestRate) || interestRate < 0) {
+    alert('Por favor, informe uma taxa de juros válida.');
+    return;
+  }
+  if (!startDate) {
+    alert('Por favor, informe a data de início do novo contrato.');
+    return;
+  }
+
+  let installmentsCount = 1;
+  let totalAmount = 0;
+  let installments = [];
+
+  if (isDaily) {
+    const days = parseInt(document.getElementById('renewDailyDaysInput').value, 10);
+    if (isNaN(days) || days <= 0) {
+      alert('Informe a quantidade de dias para a diária.');
+      return;
+    }
+    installmentsCount = days;
+    const totalInterest = principal * (interestRate / 100);
+    totalAmount = Math.round((principal + totalInterest) * 100) / 100;
+    installments = generateDailyInstallments(principal, totalAmount, installmentsCount, startDate);
+  } else {
+    const months = parseInt(document.getElementById('renewInstallmentsInput').value, 10);
+    if (isNaN(months) || months <= 0) {
+      alert('Informe a quantidade de parcelas.');
+      return;
+    }
+    installmentsCount = months;
+    const totalInterest = principal * (interestRate / 100) * installmentsCount;
+    totalAmount = Math.round((principal + totalInterest) * 100) / 100;
+    installments = generateMonthlyInstallments(principal, totalAmount, installmentsCount, startDate);
+  }
+
+  const installmentAmount = Math.round((totalAmount / installmentsCount) * 100) / 100;
+
+  // Arquiva o contrato anterior no histórico para preservação contábil
+  if (!Array.isArray(debtor.contractRenewals)) {
+    debtor.contractRenewals = [];
+  }
+
+  const statusInfo = evaluateDebtorStatus(debtor);
+  debtor.contractRenewals.push({
+    id: 'ren_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    renewedAt: new Date().toISOString(),
+    previousPrincipal: debtor.principal,
+    previousTotalAmount: debtor.totalAmount,
+    previousInstallmentAmount: debtor.installmentAmount,
+    previousInterestRate: debtor.interestRate,
+    previousInstallmentsCount: debtor.installmentsCount,
+    previousIsDaily: !!debtor.isDaily,
+    previousStartDate: debtor.startDate,
+    previousRemainingBalance: statusInfo.remainingBalance,
+    previousStatus: statusInfo.status,
+    previousInstallments: Array.isArray(debtor.installments) ? JSON.parse(JSON.stringify(debtor.installments)) : [],
+    renewalNotes: notes || ''
+  });
+
+  // Atualiza os dados do cliente para o novo contrato
+  debtor.principal = principal;
+  debtor.interestRate = interestRate;
+  debtor.isDaily = isDaily;
+  debtor.installmentsCount = installmentsCount;
+  debtor.startDate = startDate;
+  debtor.totalAmount = totalAmount;
+  debtor.installmentAmount = installmentAmount;
+  debtor.installments = installments;
+  if (notes) {
+    debtor.notes = (debtor.notes ? debtor.notes + ' | ' : '') + `[Renovação ${formatDateBR(startDate)}]: ${notes}`;
+  }
+  debtor.lastRenewedAt = new Date().toISOString();
+
+  saveData();
+  render();
+  closeModal('modalRenewContract');
+
+  showToast(`Contrato de ${debtor.name} renovado com sucesso no valor de ${formatCurrency(principal)}!`, 'success');
+  triggerGoogleSheetsAutoSync();
 }
 
 function deleteActiveDebtor() {
@@ -3782,6 +4122,61 @@ function setupEventListeners() {
     }
   });
   document.getElementById('actionBtnDelete').addEventListener('click', deleteActiveDebtor);
+
+  const renewBtn = document.getElementById('actionBtnRenewContract');
+  if (renewBtn) {
+    renewBtn.addEventListener('click', () => {
+      if (activeDebtorForAction) {
+        closeModal('modalActionSheet');
+        openRenewContractModal(activeDebtorForAction.id);
+      }
+    });
+  }
+
+  const instRenewBtn = document.getElementById('btnInstModalRenewContract');
+  if (instRenewBtn) {
+    instRenewBtn.addEventListener('click', () => {
+      if (activeDebtorForAction) {
+        closeModal('modalInstallments');
+        openRenewContractModal(activeDebtorForAction.id);
+      }
+    });
+  }
+
+  const confirmRenewBtn = document.getElementById('btnConfirmRenewContract');
+  if (confirmRenewBtn) {
+    confirmRenewBtn.addEventListener('click', confirmRenewContract);
+  }
+
+  const renewPrincipalInput = document.getElementById('renewPrincipalInput');
+  if (renewPrincipalInput) {
+    renewPrincipalInput.addEventListener('input', updateRenewContractLivePreview);
+  }
+
+  const renewInterestInput = document.getElementById('renewInterestRateInput');
+  if (renewInterestInput) {
+    renewInterestInput.addEventListener('input', updateRenewContractLivePreview);
+  }
+
+  const renewStartDateInput = document.getElementById('renewStartDateInput');
+  if (renewStartDateInput) {
+    renewStartDateInput.addEventListener('change', updateRenewContractLivePreview);
+  }
+
+  const renewIsDailyChk = document.getElementById('renewIsDailyCheckbox');
+  if (renewIsDailyChk) {
+    renewIsDailyChk.addEventListener('change', toggleRenewDailyMode);
+  }
+
+  const renewInstallmentsInput = document.getElementById('renewInstallmentsInput');
+  if (renewInstallmentsInput) {
+    renewInstallmentsInput.addEventListener('input', updateRenewContractLivePreview);
+  }
+
+  const renewDailyDaysInput = document.getElementById('renewDailyDaysInput');
+  if (renewDailyDaysInput) {
+    renewDailyDaysInput.addEventListener('input', updateRenewContractLivePreview);
+  }
 
   const interestConfirmBtn = document.getElementById('interestModalConfirmBtn');
   if (interestConfirmBtn) {
