@@ -644,6 +644,23 @@ function loadSampleData() {
         { number: 3, dueDate: addMonths(overdueDate, 2), amount: 1375, paid: false, paidAt: null },
         { number: 4, dueDate: addMonths(overdueDate, 3), amount: 1375, paid: false, paidAt: null }
       ]
+    },
+    {
+      id: 'deb-sample-financing',
+      name: 'Cliente Financiamento (BACEN)',
+      phone: '11999887766',
+      principal: 14520,
+      interestRate: 3,
+      installmentsCount: 15,
+      isDaily: false,
+      isFinancing: true,
+      planType: 'financing',
+      startDate: futureDate1.toISOString().split('T')[0],
+      notes: 'Financiamento Prestações Fixas (Calculadora do Cidadão)',
+      createdAt: new Date().toISOString(),
+      totalAmount: 18244.35,
+      installmentAmount: 1216.29,
+      installments: generateMonthlyInstallments(14520, 18244.35, 15, futureDate1.toISOString().split('T')[0])
     }
   ];
 
@@ -861,10 +878,198 @@ function evaluateDebtorStatus(debtor) {
 // SIMULAÇÃO INSTANTÂNEA NO FORMULÁRIO (COM REGRA DE DIÁRIA DE 30%)
 // ==============================================================================
 
+function calculateFinancingPMT(principal, monthlyRatePct, months) {
+  if (months <= 0) return 0;
+  const i = (parseFloat(monthlyRatePct) || 0) / 100;
+  const p = parseFloat(principal) || 0;
+  if (i <= 0) return p / months;
+  const factor = Math.pow(1 + i, months);
+  if (!isFinite(factor) || factor <= 1) return p / months;
+  return p * ((i * factor) / (factor - 1));
+}
+
+function setPlanModality(modality) {
+  const chkDaily = document.getElementById('debtorIsDaily');
+  const chkFinancing = document.getElementById('debtorIsFinancing');
+  const cardFin = document.getElementById('cardPlanFinancing');
+  const cardDaily = document.getElementById('cardPlanDaily');
+  const cardMonthly = document.getElementById('cardPlanMonthly');
+  const contDaily = document.getElementById('containerDailyDays');
+  const contMonthly = document.getElementById('containerMonthlyInstallments');
+  const lblAmount = document.querySelector('label[for="debtorAmount"]');
+  const lblInterest = document.querySelector('label[for="debtorInterest"]');
+  const lblInstallments = document.querySelector('label[for="debtorInstallments"]');
+  const planBadge = document.getElementById('planBadge');
+  const interestInput = document.getElementById('debtorInterest');
+  const installmentsInput = document.getElementById('debtorInstallments');
+
+  [cardFin, cardDaily, cardMonthly].forEach(c => {
+    if (c) {
+      c.style.borderColor = 'var(--border-subtle)';
+      c.style.background = 'var(--bg-input)';
+    }
+  });
+
+  if (modality === 'financing') {
+    if (chkFinancing) chkFinancing.checked = true;
+    if (chkDaily) chkDaily.checked = false;
+    if (cardFin) {
+      cardFin.style.borderColor = 'rgba(234, 179, 8, 0.6)';
+      cardFin.style.background = 'rgba(234, 179, 8, 0.15)';
+    }
+    if (planBadge) {
+      planBadge.textContent = 'Calculadora Cidadão (BACEN)';
+      planBadge.style.color = '#facc15';
+      planBadge.style.background = 'rgba(234, 179, 8, 0.15)';
+    }
+    if (contDaily) contDaily.style.display = 'none';
+    if (contMonthly) contMonthly.style.display = 'block';
+    if (lblAmount) lblAmount.textContent = 'Valor Financiado (R$) *';
+    if (lblInterest) lblInterest.textContent = 'Taxa de Juros Mensal (% a.m.) *';
+    if (lblInstallments) lblInstallments.textContent = 'Quantidade de Meses (Parcelas) *';
+
+    if (interestInput && interestInput.value === '30') {
+      interestInput.value = '3';
+    }
+    if (installmentsInput && (!installmentsInput.value || installmentsInput.value === '1')) {
+      installmentsInput.value = '15';
+    }
+  } else if (modality === 'monthly') {
+    if (chkFinancing) chkFinancing.checked = false;
+    if (chkDaily) chkDaily.checked = false;
+    if (cardMonthly) {
+      cardMonthly.style.borderColor = 'rgba(59, 130, 246, 0.6)';
+      cardMonthly.style.background = 'rgba(59, 130, 246, 0.15)';
+    }
+    if (planBadge) {
+      planBadge.textContent = 'Juros Simples Mensal';
+      planBadge.style.color = '#60a5fa';
+      planBadge.style.background = 'rgba(59, 130, 246, 0.15)';
+    }
+    if (contDaily) contDaily.style.display = 'none';
+    if (contMonthly) contMonthly.style.display = 'block';
+    if (lblAmount) lblAmount.textContent = 'Valor do Empréstimo (R$) *';
+    if (lblInterest) lblInterest.textContent = 'Taxa de Juros ao Mês (%) *';
+    if (lblInstallments) lblInstallments.textContent = 'Quantidade de Parcelas (Meses) *';
+    if (interestInput && interestInput.value === '3') {
+      interestInput.value = '30';
+    }
+  } else { // daily
+    if (chkFinancing) chkFinancing.checked = false;
+    if (chkDaily) chkDaily.checked = true;
+    if (cardDaily) {
+      cardDaily.style.borderColor = 'rgba(34, 197, 94, 0.6)';
+      cardDaily.style.background = 'rgba(34, 197, 94, 0.15)';
+    }
+    if (planBadge) {
+      planBadge.textContent = 'Cobrança Diária';
+      planBadge.style.color = '#4ade80';
+      planBadge.style.background = 'rgba(34, 197, 94, 0.15)';
+    }
+    if (contDaily) contDaily.style.display = 'block';
+    if (contMonthly) contMonthly.style.display = 'none';
+    if (lblAmount) lblAmount.textContent = 'Valor do Empréstimo (R$) *';
+    if (lblInterest) lblInterest.textContent = 'Taxa de Juros ao Mês (%) *';
+    if (interestInput && interestInput.value === '3') {
+      interestInput.value = '30';
+    }
+  }
+
+  updateLivePreview();
+}
+
+function setRenewPlanModality(modality) {
+  const chkDaily = document.getElementById('renewIsDailyCheckbox');
+  const chkFinancing = document.getElementById('renewIsFinancingCheckbox');
+  const cardFin = document.getElementById('cardRenewFinancing');
+  const cardDaily = document.getElementById('cardRenewDaily');
+  const cardMonthly = document.getElementById('cardRenewMonthly');
+  const monthlyGroup = document.getElementById('renewMonthlyGroup');
+  const dailyGroup = document.getElementById('renewDailyGroup');
+  const planBadge = document.getElementById('renewPlanBadge');
+  const lblInterest = document.querySelector('label[for="renewInterestRateInput"]');
+  const lblInstallments = document.querySelector('label[for="renewInstallmentsInput"]');
+  const interestInput = document.getElementById('renewInterestRateInput');
+  const installmentsInput = document.getElementById('renewInstallmentsInput');
+
+  [cardFin, cardDaily, cardMonthly].forEach(c => {
+    if (c) {
+      c.style.borderColor = 'var(--border-subtle)';
+      c.style.background = 'var(--bg-input)';
+    }
+  });
+
+  if (modality === 'financing') {
+    if (chkFinancing) chkFinancing.checked = true;
+    if (chkDaily) chkDaily.checked = false;
+    if (cardFin) {
+      cardFin.style.borderColor = 'rgba(234, 179, 8, 0.6)';
+      cardFin.style.background = 'rgba(234, 179, 8, 0.15)';
+    }
+    if (planBadge) {
+      planBadge.textContent = 'Calculadora Cidadão (BACEN)';
+      planBadge.style.color = '#facc15';
+      planBadge.style.background = 'rgba(234, 179, 8, 0.15)';
+    }
+    if (monthlyGroup) monthlyGroup.style.display = 'block';
+    if (dailyGroup) dailyGroup.style.display = 'none';
+    if (lblInterest) lblInterest.textContent = 'Taxa de Juros Mensal (% a.m.) *';
+    if (lblInstallments) lblInstallments.textContent = 'Quantidade de Meses (Parcelas) *';
+    if (interestInput && interestInput.value === '30') {
+      interestInput.value = '3';
+    }
+    if (installmentsInput && (!installmentsInput.value || installmentsInput.value === '1')) {
+      installmentsInput.value = '15';
+    }
+  } else if (modality === 'daily') {
+    if (chkFinancing) chkFinancing.checked = false;
+    if (chkDaily) chkDaily.checked = true;
+    if (cardDaily) {
+      cardDaily.style.borderColor = 'rgba(34, 197, 94, 0.6)';
+      cardDaily.style.background = 'rgba(34, 197, 94, 0.15)';
+    }
+    if (planBadge) {
+      planBadge.textContent = 'Cobrança Diária';
+      planBadge.style.color = '#4ade80';
+      planBadge.style.background = 'rgba(34, 197, 94, 0.15)';
+    }
+    if (monthlyGroup) monthlyGroup.style.display = 'none';
+    if (dailyGroup) dailyGroup.style.display = 'block';
+    if (lblInterest) lblInterest.textContent = 'Taxa de Juros (%) *';
+    if (lblInstallments) lblInstallments.textContent = 'Quantidade de Parcelas (Meses) *';
+    if (interestInput && interestInput.value === '3') {
+      interestInput.value = '30';
+    }
+  } else { // monthly
+    if (chkFinancing) chkFinancing.checked = false;
+    if (chkDaily) chkDaily.checked = false;
+    if (cardMonthly) {
+      cardMonthly.style.borderColor = 'rgba(59, 130, 246, 0.6)';
+      cardMonthly.style.background = 'rgba(59, 130, 246, 0.15)';
+    }
+    if (planBadge) {
+      planBadge.textContent = 'Juros Simples Mensal';
+      planBadge.style.color = '#60a5fa';
+      planBadge.style.background = 'rgba(59, 130, 246, 0.15)';
+    }
+    if (monthlyGroup) monthlyGroup.style.display = 'block';
+    if (dailyGroup) dailyGroup.style.display = 'none';
+    if (lblInterest) lblInterest.textContent = 'Taxa de Juros (%) *';
+    if (lblInstallments) lblInstallments.textContent = 'Quantidade de Parcelas (Meses) *';
+    if (interestInput && interestInput.value === '3') {
+      interestInput.value = '30';
+    }
+  }
+
+  updateRenewContractLivePreview();
+}
+
 function updateLivePreview() {
   const principal = parseFloat(document.getElementById('debtorAmount').value) || 0;
   const interestRate = parseFloat(document.getElementById('debtorInterest').value) || 0;
   const isDaily = document.getElementById('debtorIsDaily').checked;
+  const isFinancingChk = document.getElementById('debtorIsFinancing');
+  const isFinancing = isFinancingChk ? isFinancingChk.checked : false;
 
   const containerMonthly = document.getElementById('containerMonthlyInstallments');
   const containerDaily = document.getElementById('containerDailyDays');
@@ -890,9 +1095,16 @@ function updateLivePreview() {
   let totalAmount = 0;
   let installmentVal = 0;
 
-  if (isDaily) {
-    // Regra da Diária: Total = Principal + (Principal * taxa / 100)
-    // Ex: R$ 1.000 com 30% = R$ 1.300,00 total, dividido pela quantidade de dias escolhida!
+  if (isFinancing) {
+    const months = parseInt(document.getElementById('debtorInstallments').value, 10) || 1;
+    const pmt = calculateFinancingPMT(principal, interestRate, months);
+    installmentVal = Math.round(pmt * 100) / 100;
+    totalAmount = Math.round(installmentVal * months * 100) / 100;
+    totalInterest = Math.max(0, Math.round((totalAmount - principal) * 100) / 100);
+
+    document.getElementById('previewDetailText').innerHTML = 
+      `🏦 <strong>Financiamento:</strong> O total desse financiamento de <strong>${months} parcelas de ${formatCurrency(installmentVal)}</strong> é <strong>${formatCurrency(totalAmount)}</strong>, sendo <strong>${formatCurrency(totalInterest)} de juros</strong> (Tabela Price / Calculadora do Cidadão).`;
+  } else if (isDaily) {
     const days = parseInt(document.getElementById('debtorDailyDays').value, 10) || 1;
     totalInterest = principal * (interestRate / 100);
     totalAmount = principal + totalInterest;
@@ -901,7 +1113,6 @@ function updateLivePreview() {
     document.getElementById('previewDetailText').innerHTML = 
       `⚡ Diária: <strong>${formatCurrency(totalAmount)}</strong> em <strong>${days} dias</strong> (${formatCurrency(installmentVal)}/dia).`;
   } else {
-    // Mensal: taxa mensal multiplicada pela quantidade de parcelas
     const installments = parseInt(document.getElementById('debtorInstallments').value, 10) || 1;
     totalInterest = principal * (interestRate / 100) * installments;
     totalAmount = principal + totalInterest;
@@ -2544,7 +2755,7 @@ function renderClientsList() {
     const initial = (debtor.name.trim().charAt(0) || 'C').toUpperCase();
     const nextDueDate = info.nextInstallment ? formatDateBR(info.nextInstallment.dueDate) : 'Quitado';
     const nextAmount = info.nextInstallment ? formatCurrency(info.nextInstallment.amount) : 'R$ 0,00';
-    const freqTag = debtor.isDaily ? 'Diária' : 'Mensal';
+    const freqTag = debtor.isFinancing ? 'Financiamento' : (debtor.isDaily ? 'Diária' : 'Mensal');
 
     const row = document.createElement('div');
     row.className = 'client-row-item';
@@ -2738,7 +2949,7 @@ function openActionSheet(debtorId) {
 
   document.getElementById('actionSheetClientName').textContent = debtor.name;
   document.getElementById('actionSheetSubDetails').textContent = 
-    `${debtor.isDaily ? 'Diária' : 'Mensal'} • Total: ${formatCurrency(debtor.totalAmount)} • Saldo: ${formatCurrency(info.remainingBalance)}`;
+    `${debtor.isFinancing ? 'Financiamento' : (debtor.isDaily ? 'Diária' : 'Mensal')} • Total: ${formatCurrency(debtor.totalAmount)} • Saldo: ${formatCurrency(info.remainingBalance)}`;
 
   // WhatsApp Link
   const zapBtn = document.getElementById('actionBtnWhatsApp');
@@ -2779,7 +2990,7 @@ function openInstallmentsModal(debtorId) {
 
   document.getElementById('instModalDebtorName').textContent = debtor.name;
   document.getElementById('instModalDebtorDetails').textContent = 
-    `${debtor.isDaily ? 'Diária' : 'Mensal'} • Total: ${formatCurrency(debtor.totalAmount)} • ${info.paidCount}/${info.totalCount} pagas`;
+    `${debtor.isFinancing ? 'Financiamento' : (debtor.isDaily ? 'Diária' : 'Mensal')} • Total: ${formatCurrency(debtor.totalAmount)} • ${info.paidCount}/${info.totalCount} pagas`;
 
   const container = document.getElementById('installmentsListCards');
   container.innerHTML = '';
@@ -3223,7 +3434,7 @@ function openRenewContractModal(debtorId) {
 
   const instInput = document.getElementById('renewInstallmentsInput');
   if (instInput) {
-    instInput.value = debtor.isDaily ? '1' : (debtor.installmentsCount || '1').toString();
+    instInput.value = debtor.isDaily ? '1' : (debtor.installmentsCount || (debtor.isFinancing ? '15' : '1')).toString();
   }
 
   const daysInput = document.getElementById('renewDailyDaysInput');
@@ -3236,34 +3447,22 @@ function openRenewContractModal(debtorId) {
     notesInput.value = '';
   }
 
-  toggleRenewDailyMode();
-  updateRenewContractLivePreview();
+  setRenewPlanModality(debtor.isFinancing ? 'financing' : (debtor.isDaily ? 'daily' : 'monthly'));
 
   openModal('modalRenewContract');
 }
 
 function toggleRenewDailyMode() {
   const isDailyChk = document.getElementById('renewIsDailyCheckbox');
-  const monthlyGroup = document.getElementById('renewMonthlyGroup');
-  const dailyGroup = document.getElementById('renewDailyGroup');
   const isDaily = isDailyChk ? isDailyChk.checked : false;
-
-  if (monthlyGroup && dailyGroup) {
-    if (isDaily) {
-      monthlyGroup.style.display = 'none';
-      dailyGroup.style.display = 'block';
-    } else {
-      monthlyGroup.style.display = 'block';
-      dailyGroup.style.display = 'none';
-    }
-  }
-  updateRenewContractLivePreview();
+  setRenewPlanModality(isDaily ? 'daily' : 'monthly');
 }
 
 function updateRenewContractLivePreview() {
   const prinInput = document.getElementById('renewPrincipalInput');
   const intInput = document.getElementById('renewInterestRateInput');
   const isDailyChk = document.getElementById('renewIsDailyCheckbox');
+  const isFinancingChk = document.getElementById('renewIsFinancingCheckbox');
   const instInput = document.getElementById('renewInstallmentsInput');
   const daysInput = document.getElementById('renewDailyDaysInput');
   const dateInput = document.getElementById('renewStartDateInput');
@@ -3271,6 +3470,7 @@ function updateRenewContractLivePreview() {
   const principal = parseFloat(prinInput ? prinInput.value : 0) || 0;
   const interestRate = parseFloat(intInput ? intInput.value : 0) || 0;
   const isDaily = isDailyChk ? isDailyChk.checked : false;
+  const isFinancing = isFinancingChk ? isFinancingChk.checked : false;
   const startDate = dateInput ? dateInput.value : '';
 
   let installmentsCount = 1;
@@ -3278,7 +3478,13 @@ function updateRenewContractLivePreview() {
   let totalAmount = 0;
   let installmentVal = 0;
 
-  if (isDaily) {
+  if (isFinancing) {
+    installmentsCount = parseInt(instInput ? instInput.value : 15, 10) || 1;
+    const pmt = calculateFinancingPMT(principal, interestRate, installmentsCount);
+    installmentVal = Math.round(pmt * 100) / 100;
+    totalAmount = Math.round(installmentVal * installmentsCount * 100) / 100;
+    totalInterest = Math.max(0, Math.round((totalAmount - principal) * 100) / 100);
+  } else if (isDaily) {
     installmentsCount = parseInt(daysInput ? daysInput.value : 30, 10) || 1;
     totalInterest = principal * (interestRate / 100);
     totalAmount = principal + totalInterest;
@@ -3303,9 +3509,16 @@ function updateRenewContractLivePreview() {
 
   const previewDetail = document.getElementById('renewPreviewDetailText');
   if (previewDetail) {
-    const modeText = isDaily ? `Diária: ${installmentsCount} dias` : `Mensal: ${installmentsCount}x parcelas`;
+    let modeText = '';
+    if (isFinancing) {
+      modeText = `🏦 Financiamento (BACEN): ${installmentsCount} parcelas de ${formatCurrency(installmentVal)}`;
+    } else if (isDaily) {
+      modeText = `☀️ Diária: ${installmentsCount} dias (${formatCurrency(installmentVal)}/dia)`;
+    } else {
+      modeText = `🗓️ Mensal: ${installmentsCount}x parcelas (${interestRate}% ao mês)`;
+    }
     const firstDue = startDate ? (isDaily ? addDays(startDate, 0) : addMonths(new Date(startDate.split('-').map(Number)[0], startDate.split('-').map(Number)[1] - 1, startDate.split('-').map(Number)[2]), 0)) : '--';
-    previewDetail.textContent = `${modeText} (${interestRate}% ao mês). Primeiro vencimento: ${startDate ? formatDateBR(firstDue) : '--'}`;
+    previewDetail.textContent = `${modeText}. Primeiro vencimento: ${startDate ? formatDateBR(firstDue) : '--'}`;
   }
 }
 
@@ -3320,6 +3533,8 @@ function confirmRenewContract() {
   const principal = parseFloat(document.getElementById('renewPrincipalInput').value);
   const interestRate = parseFloat(document.getElementById('renewInterestRateInput').value);
   const isDaily = document.getElementById('renewIsDailyCheckbox').checked;
+  const isFinancingChk = document.getElementById('renewIsFinancingCheckbox');
+  const isFinancing = isFinancingChk ? isFinancingChk.checked : false;
   const startDate = document.getElementById('renewStartDateInput').value;
   const notes = document.getElementById('renewNotesInput').value.trim();
 
@@ -3340,7 +3555,18 @@ function confirmRenewContract() {
   let totalAmount = 0;
   let installments = [];
 
-  if (isDaily) {
+  if (isFinancing) {
+    const months = parseInt(document.getElementById('renewInstallmentsInput').value, 10);
+    if (isNaN(months) || months <= 0) {
+      alert('Informe a quantidade de meses (parcelas).');
+      return;
+    }
+    installmentsCount = months;
+    const pmt = calculateFinancingPMT(principal, interestRate, installmentsCount);
+    const singleInst = Math.round(pmt * 100) / 100;
+    totalAmount = Math.round(singleInst * installmentsCount * 100) / 100;
+    installments = generateMonthlyInstallments(principal, totalAmount, installmentsCount, startDate);
+  } else if (isDaily) {
     const days = parseInt(document.getElementById('renewDailyDaysInput').value, 10);
     if (isNaN(days) || days <= 0) {
       alert('Informe a quantidade de dias para a diária.');
@@ -3379,6 +3605,8 @@ function confirmRenewContract() {
     previousInterestRate: debtor.interestRate,
     previousInstallmentsCount: debtor.installmentsCount,
     previousIsDaily: !!debtor.isDaily,
+    previousIsFinancing: !!debtor.isFinancing,
+    previousPlanType: debtor.planType || (debtor.isFinancing ? 'financing' : (debtor.isDaily ? 'daily' : 'monthly')),
     previousStartDate: debtor.startDate,
     previousRemainingBalance: statusInfo.remainingBalance,
     previousStatus: statusInfo.status,
@@ -3390,6 +3618,8 @@ function confirmRenewContract() {
   debtor.principal = principal;
   debtor.interestRate = interestRate;
   debtor.isDaily = isDaily;
+  debtor.isFinancing = isFinancing;
+  debtor.planType = isFinancing ? 'financing' : (isDaily ? 'daily' : 'monthly');
   debtor.installmentsCount = installmentsCount;
   debtor.startDate = startDate;
   debtor.totalAmount = totalAmount;
@@ -3430,6 +3660,8 @@ function handleNewClientSubmit(e) {
   const principal = parseFloat(document.getElementById('debtorAmount').value);
   const interestRate = parseFloat(document.getElementById('debtorInterest').value);
   const isDaily = document.getElementById('debtorIsDaily').checked;
+  const isFinancingChk = document.getElementById('debtorIsFinancing');
+  const isFinancing = isFinancingChk ? isFinancingChk.checked : false;
   const startDate = document.getElementById('debtorStartDate').value;
   const notes = document.getElementById('debtorNotes').value.trim();
 
@@ -3442,7 +3674,18 @@ function handleNewClientSubmit(e) {
   let totalAmount = 0;
   let installments = [];
 
-  if (isDaily) {
+  if (isFinancing) {
+    const months = parseInt(document.getElementById('debtorInstallments').value, 10);
+    if (isNaN(months) || months <= 0) {
+      alert('Informe a quantidade de meses (parcelas).');
+      return;
+    }
+    installmentsCount = months;
+    const pmt = calculateFinancingPMT(principal, interestRate, installmentsCount);
+    const singleInstAmount = Math.round(pmt * 100) / 100;
+    totalAmount = Math.round(singleInstAmount * installmentsCount * 100) / 100;
+    installments = generateMonthlyInstallments(principal, totalAmount, installmentsCount, startDate);
+  } else if (isDaily) {
     const days = parseInt(document.getElementById('debtorDailyDays').value, 10);
     if (isNaN(days) || days <= 0) {
       alert('Informe a quantidade de dias para a diária.');
@@ -3475,6 +3718,8 @@ function handleNewClientSubmit(e) {
     interestRate,
     installmentsCount,
     isDaily,
+    isFinancing,
+    planType: isFinancing ? 'financing' : (isDaily ? 'daily' : 'monthly'),
     startDate,
     notes,
     createdAt: new Date().toISOString(),
@@ -3492,6 +3737,7 @@ function handleNewClientSubmit(e) {
 
   closeModal('modalNewClient');
   document.getElementById('formNewClient').reset();
+  setPlanModality('daily');
   document.getElementById('debtorInterest').value = '30';
   document.getElementById('debtorInstallments').value = '1';
   document.getElementById('debtorDailyDays').value = '30';
@@ -3705,6 +3951,8 @@ function getGoogleSheetsExportPayload() {
       name: d.name,
       cpf: d.cpf || '',
       phone: d.phone || '',
+      planType: d.isFinancing ? 'Financiamento' : (d.isDaily ? 'Diária' : 'Mensal'),
+      isFinancing: !!d.isFinancing,
       principal: d.principal || 0,
       interestRate: d.interestRate || 0,
       totalAmount: d.totalAmount || 0,
@@ -3826,7 +4074,7 @@ function sendGoogleSheetsClientBackup(debtor) {
       phone: debtor.phone || '',
       principal: principal,
       interestRate: parseFloat(debtor.interestRate) || 0,
-      type: debtor.isDaily ? 'Diária' : 'Mensal',
+      type: debtor.isFinancing ? 'Financiamento' : (debtor.isDaily ? 'Diária' : 'Mensal'),
       installmentsCount: parseInt(debtor.installmentsCount, 10) || 1,
       installmentAmount: parseFloat(debtor.installmentAmount) || 0,
       totalAmount: totalAmount,
@@ -3870,13 +4118,14 @@ function exportSpreadsheetCSV() {
   csvContent += `Data de Geração;${new Date().toLocaleString('pt-BR')}\r\n\r\n`;
 
   csvContent += "=== CLIENTES E EMPRÉSTIMOS ===\r\n";
-  csvContent += "Nome;CPF;Telefone;Valor Emprestado;Taxa (%);Total a Pagar;Saldo Restante;Lucro Previsto;Lucro Realizado;Parcelas Pagas;Total Parcelas;Status;Data Cadastro;Observações\r\n";
+  csvContent += "Nome;CPF;Telefone;Modalidade;Valor Emprestado;Taxa (%);Total a Pagar;Saldo Restante;Lucro Previsto;Lucro Realizado;Parcelas Pagas;Total Parcelas;Status;Data Cadastro;Observações\r\n";
   
   debtors.forEach(d => {
     const row = [
       `"${(d.name || '').replace(/"/g, '""')}"`,
       `"${(d.cpf || '').replace(/"/g, '""')}"`,
       `"${(d.phone || '').replace(/"/g, '""')}"`,
+      `"${d.planType === 'financing' ? 'Financiamento' : (d.planType === 'daily' ? 'Diária' : 'Mensal')}"`,
       `"${(d.principal || 0).toFixed(2).replace('.', ',')}"`,
       `"${(d.interestRate || 0).toFixed(2).replace('.', ',')}"`,
       `"${(d.totalAmount || 0).toFixed(2).replace('.', ',')}"`,
@@ -4063,7 +4312,7 @@ function setupEventListeners() {
   form.addEventListener('submit', handleNewClientSubmit);
 
   // Inputs para simulação em tempo real
-  const inputsToListen = ['debtorAmount', 'debtorInterest', 'debtorInstallments', 'debtorIsDaily', 'debtorDailyDays'];
+  const inputsToListen = ['debtorAmount', 'debtorInterest', 'debtorInstallments', 'debtorIsDaily', 'debtorIsFinancing', 'debtorDailyDays'];
   inputsToListen.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -4166,6 +4415,11 @@ function setupEventListeners() {
   const renewIsDailyChk = document.getElementById('renewIsDailyCheckbox');
   if (renewIsDailyChk) {
     renewIsDailyChk.addEventListener('change', toggleRenewDailyMode);
+  }
+
+  const renewIsFinancingChk = document.getElementById('renewIsFinancingCheckbox');
+  if (renewIsFinancingChk) {
+    renewIsFinancingChk.addEventListener('change', updateRenewContractLivePreview);
   }
 
   const renewInstallmentsInput = document.getElementById('renewInstallmentsInput');
