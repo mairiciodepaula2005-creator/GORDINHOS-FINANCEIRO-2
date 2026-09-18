@@ -2965,10 +2965,14 @@ function openActionSheet(debtorId) {
     payBtn.innerHTML = `<span style="font-size: 1.2rem;">💵</span> Receber Parcela #${info.nextInstallment.number} (${formatCurrency(info.nextInstallment.amount)})`;
 
     if (payInterestBtn) {
-      const minInterest = calculateDebtorMinInterest(debtor, info.nextInstallment);
-      payInterestBtn.style.display = 'flex';
-      if (payInterestText) {
-        payInterestText.textContent = `Receber Só Juros (${formatCurrency(minInterest)}) • Renovar`;
+      if (debtor.isFinancing) {
+        payInterestBtn.style.display = 'none';
+      } else {
+        const minInterest = calculateDebtorMinInterest(debtor, info.nextInstallment);
+        payInterestBtn.style.display = 'flex';
+        if (payInterestText) {
+          payInterestText.textContent = `Receber Só Juros (${formatCurrency(minInterest)}) • Renovar`;
+        }
       }
     }
   } else {
@@ -3039,7 +3043,7 @@ function openInstallmentsModal(debtorId) {
          </div>`;
     }
 
-    const payInterestBtnHtml = !inst.paid
+    const payInterestBtnHtml = (!inst.paid && !debtor.isFinancing)
       ? `<button type="button" data-pay-interest="${inst.number}" title="Receber apenas os juros e adiar vencimento para o próximo mês" style="margin-top: 0; padding: 0.38rem 0.6rem; font-size: 0.72rem; width: auto; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.35); color: #60a5fa; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; white-space: nowrap;">
            Só Juros (${formatCurrency(minInterest)})
          </button>`
